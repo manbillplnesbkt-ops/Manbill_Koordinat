@@ -51,8 +51,8 @@ export interface ImportResultPayload {
   message: string;
 }
 
-const LOCAL_DATA_CACHE_KEY = "geosheet_monitor_cached_dataset_v10";
-const LOCAL_MONTHLY_OVERRIDES_KEY = "geosheet_monthly_sheet_overrides_v1";
+const LOCAL_DATA_CACHE_KEY = "geosheet_monitor_cached_dataset_v13";
+const LOCAL_MONTHLY_OVERRIDES_KEY = "geosheet_monthly_sheet_overrides_v3";
 
 // Clean up older localStorage cache keys
 try {
@@ -223,6 +223,7 @@ function enrichRecordsWithMonthlyLocations(
   const findSchemaByRole = (role: ColumnSchema["canonicalRole"]) =>
     schemas.find((s) => s.canonicalRole === role);
 
+  const samplingSchema = findSchemaByRole("sampling");
   const dilSchema = findSchemaByRole("dil");
   const namaSchema = findSchemaByRole("nama");
   const alamatSchema = findSchemaByRole("alamat");
@@ -236,6 +237,7 @@ function enrichRecordsWithMonthlyLocations(
   const novemberSchema = findSchemaByRole("lokasi_november");
   const desemberSchema = findSchemaByRole("lokasi_desember");
 
+  const jarakDilSamplingSchema = findSchemaByRole("jarak_dil_sampling");
   const jarakDilJuniSchema = findSchemaByRole("jarak_dil_juni");
   const jarakDilJuliSchema = findSchemaByRole("jarak_dil_juli");
   const jarakDilAgustusSchema = findSchemaByRole("jarak_dil_agustus");
@@ -318,6 +320,7 @@ function enrichRecordsWithMonthlyLocations(
       ].filter(Boolean))
     );
 
+    let locSampling = rec.lokasiSampling !== "-" ? rec.lokasiSampling : "";
     let locJuni = rec.lokasiJuni !== "-" ? rec.lokasiJuni : "";
     let locJuli = rec.lokasiJuli !== "-" ? rec.lokasiJuli : "";
     let locAgustus = rec.lokasiAgustus !== "-" ? rec.lokasiAgustus : "";
@@ -327,15 +330,25 @@ function enrichRecordsWithMonthlyLocations(
     let locDesember = rec.lokasiDesember !== "-" ? rec.lokasiDesember : "";
 
     for (const k of keysToTry) {
-      if (monthlyLookups.JUNI.has(k)) locJuni = monthlyLookups.JUNI.get(k)!;
-      if (monthlyLookups.JULI.has(k)) locJuli = monthlyLookups.JULI.get(k)!;
-      if (monthlyLookups.AGUSTUS.has(k)) locAgustus = monthlyLookups.AGUSTUS.get(k)!;
-      if (monthlyLookups.SEPTEMBER.has(k)) locSeptember = monthlyLookups.SEPTEMBER.get(k)!;
-      if (monthlyLookups.OKTOBER.has(k)) locOktober = monthlyLookups.OKTOBER.get(k)!;
-      if (monthlyLookups.NOVEMBER.has(k)) locNovember = monthlyLookups.NOVEMBER.get(k)!;
-      if (monthlyLookups.DESEMBER.has(k)) locDesember = monthlyLookups.DESEMBER.get(k)!;
+      const vSampling = monthlyLookups.SAMPLING.get(k);
+      if (vSampling && vSampling !== "-") locSampling = vSampling;
+      const vJuni = monthlyLookups.JUNI.get(k);
+      if (vJuni && vJuni !== "-") locJuni = vJuni;
+      const vJuli = monthlyLookups.JULI.get(k);
+      if (vJuli && vJuli !== "-") locJuli = vJuli;
+      const vAgustus = monthlyLookups.AGUSTUS.get(k);
+      if (vAgustus && vAgustus !== "-") locAgustus = vAgustus;
+      const vSeptember = monthlyLookups.SEPTEMBER.get(k);
+      if (vSeptember && vSeptember !== "-") locSeptember = vSeptember;
+      const vOktober = monthlyLookups.OKTOBER.get(k);
+      if (vOktober && vOktober !== "-") locOktober = vOktober;
+      const vNovember = monthlyLookups.NOVEMBER.get(k);
+      if (vNovember && vNovember !== "-") locNovember = vNovember;
+      const vDesember = monthlyLookups.DESEMBER.get(k);
+      if (vDesember && vDesember !== "-") locDesember = vDesember;
     }
 
+    if (samplingSchema) updatedRaw[samplingSchema.originalHeader] = locSampling || "-";
     if (juniSchema) updatedRaw[juniSchema.originalHeader] = locJuni || "-";
     if (juliSchema) updatedRaw[juliSchema.originalHeader] = locJuli || "-";
     if (agustusSchema) updatedRaw[agustusSchema.originalHeader] = locAgustus || "-";
@@ -351,6 +364,7 @@ function enrichRecordsWithMonthlyLocations(
         : fallback;
     };
 
+    const coordSampling = toCoord(locSampling, rec.coordSampling);
     const coordJuni = toCoord(locJuni, rec.coordJuni);
     const coordJuli = toCoord(locJuli, rec.coordJuli);
     const coordAgustus = toCoord(locAgustus, rec.coordAgustus);
@@ -373,6 +387,17 @@ function enrichRecordsWithMonthlyLocations(
     const dDilNovember = calcDist(coordDil, coordNovember);
     const dDilDesember = calcDist(coordDil, coordDesember);
 
+    // 1b. JARAK DENGAN SAMPLING (antara Koordinat SAMPLING dengan DIL & masing-masing bulan)
+    const dSamplingDil = calcDist(coordSampling, coordDil);
+    const dSamplingJuni = calcDist(coordSampling, coordJuni);
+    const dSamplingJuli = calcDist(coordSampling, coordJuli);
+    const dSamplingAgustus = calcDist(coordSampling, coordAgustus);
+    const dSamplingSeptember = calcDist(coordSampling, coordSeptember);
+    const dSamplingOktober = calcDist(coordSampling, coordOktober);
+    const dSamplingNovember = calcDist(coordSampling, coordNovember);
+    const dSamplingDesember = calcDist(coordSampling, coordDesember);
+
+    if (jarakDilSamplingSchema) updatedRaw[jarakDilSamplingSchema.originalHeader] = dSamplingDil.text;
     if (jarakDilJuniSchema) updatedRaw[jarakDilJuniSchema.originalHeader] = dDilJuni.text;
     if (jarakDilJuliSchema) updatedRaw[jarakDilJuliSchema.originalHeader] = dDilJuli.text;
     if (jarakDilAgustusSchema) updatedRaw[jarakDilAgustusSchema.originalHeader] = dDilAgustus.text;
@@ -402,6 +427,7 @@ function enrichRecordsWithMonthlyLocations(
 
     const fallbackMonthly =
       coordDil ||
+      coordSampling ||
       coordDesember ||
       coordNovember ||
       coordOktober ||
@@ -421,6 +447,7 @@ function enrichRecordsWithMonthlyLocations(
       nama: finalNama || "-",
       alamat: finalAlamat || "-",
       koordinatDil: finalKoordinatDil || "-",
+      lokasiSampling: locSampling || "-",
       lokasiJuni: locJuni || "-",
       lokasiJuli: locJuli || "-",
       lokasiAgustus: locAgustus || "-",
@@ -442,6 +469,22 @@ function enrichRecordsWithMonthlyLocations(
       jarakDilNovemberMeters: dDilNovember.meters,
       jarakDilDesember: dDilDesember.text,
       jarakDilDesemberMeters: dDilDesember.meters,
+      jarakSamplingDil: dSamplingDil.text,
+      jarakSamplingDilMeters: dSamplingDil.meters,
+      jarakSamplingJuni: dSamplingJuni.text,
+      jarakSamplingJuniMeters: dSamplingJuni.meters,
+      jarakSamplingJuli: dSamplingJuli.text,
+      jarakSamplingJuliMeters: dSamplingJuli.meters,
+      jarakSamplingAgustus: dSamplingAgustus.text,
+      jarakSamplingAgustusMeters: dSamplingAgustus.meters,
+      jarakSamplingSeptember: dSamplingSeptember.text,
+      jarakSamplingSeptemberMeters: dSamplingSeptember.meters,
+      jarakSamplingOktober: dSamplingOktober.text,
+      jarakSamplingOktoberMeters: dSamplingOktober.meters,
+      jarakSamplingNovember: dSamplingNovember.text,
+      jarakSamplingNovemberMeters: dSamplingNovember.meters,
+      jarakSamplingDesember: dSamplingDesember.text,
+      jarakSamplingDesemberMeters: dSamplingDesember.meters,
       jarakJuli: dJuniJuli.text,
       jarakJuliMeters: dJuniJuli.meters,
       jarakAgustus: dJuliAgustus.text,
@@ -455,6 +498,7 @@ function enrichRecordsWithMonthlyLocations(
       jarakDesember: dNovemberDesember.text,
       jarakDesemberMeters: dNovemberDesember.meters,
       coordDil,
+      coordSampling,
       coordJuni,
       coordJuli,
       coordAgustus,
@@ -542,8 +586,13 @@ export async function fetchSpreadsheetData(
         SEPTEMBER: new Map<string, string>(Object.entries(json.monthlyLocations?.SEPTEMBER || {})),
         OKTOBER: new Map<string, string>(Object.entries(json.monthlyLocations?.OKTOBER || {})),
         NOVEMBER: new Map<string, string>(Object.entries(json.monthlyLocations?.NOVEMBER || {})),
-        DESEMBER: new Map<string, string>(Object.entries(json.monthlyLocations?.DESEMBER || {}))
+        DESEMBER: new Map<string, string>(Object.entries(json.monthlyLocations?.DESEMBER || {})),
+        SAMPLING: new Map<string, string>(Object.entries(json.monthlyLocations?.SAMPLING || {}))
       };
+
+      if (monthlyLookups.SAMPLING.size === 0) {
+        monthlyLookups.SAMPLING = await fetchSheetLocationLookupGviz(SPREADSHEET_ID, "SAMPLING");
+      }
 
       mergeLocalOverridesIntoLookups(SPREADSHEET_ID, monthlyLookups);
 
@@ -561,24 +610,67 @@ export async function fetchSpreadsheetData(
         dilLookup = await fetchDilMasterLookupGviz(SPREADSHEET_ID);
       }
 
-      const enrichedRecords = enrichRecordsWithMonthlyLocations(
+      const enrichedAll = enrichRecordsWithMonthlyLocations(
         baseRecords,
         schemas,
         monthlyLookups,
         dilLookup
       );
 
+      let finalRecordsForSheet = enrichedAll;
+      if (SHEET_NAME.trim().toUpperCase() === "SAMPLING") {
+        // When SAMPLING sheet is selected, only display DIL data that exists in Sheet SAMPLING
+        if (
+          (json.sheetName || "").trim().toUpperCase() === "SAMPLING" &&
+          enrichedAll.length > 0
+        ) {
+          finalRecordsForSheet = enrichedAll;
+        } else {
+          const samplingKeys = new Set(
+            Array.from(monthlyLookups.SAMPLING.keys()).map((k) => k.trim().toLowerCase())
+          );
+          const matchedExisting = enrichedAll.filter((r) => {
+            const k1 = r.dil !== "-" ? r.dil.trim().toLowerCase() : "";
+            const k2 = r.id !== "-" ? r.id.trim().toLowerCase() : "";
+            return (k1 && samplingKeys.has(k1)) || (k2 && samplingKeys.has(k2));
+          });
+          const coveredKeys = new Set<string>();
+          matchedExisting.forEach((r) => {
+            if (r.dil !== "-") coveredKeys.add(r.dil.trim().toLowerCase());
+            if (r.id !== "-") coveredKeys.add(r.id.trim().toLowerCase());
+          });
+          const extraRows: LocationRecord[] = [];
+          monthlyLookups.SAMPLING.forEach((coordStr, dilKey) => {
+            if (!coveredKeys.has(dilKey)) {
+              coveredKeys.add(dilKey);
+              const { record } = normalizeRowToRecord(
+                { DIL: dilKey.toUpperCase(), SAMPLING: coordStr !== "-" ? coordStr : "" },
+                schemas,
+                matchedExisting.length + extraRows.length
+              );
+              extraRows.push(record);
+            }
+          });
+          finalRecordsForSheet = [
+            ...matchedExisting,
+            ...enrichRecordsWithMonthlyLocations(extraRows, schemas, monthlyLookups, dilLookup)
+          ];
+        }
+      }
+
       const payload: SpreadsheetDataPayload = {
-        records: enrichedRecords,
+        records: finalRecordsForSheet,
         schemas,
         headers: schemas.map((s) => s.originalHeader),
         sheetName: json.sheetName || SHEET_NAME || "Data",
-        availableSheets:
-          json.availableSheets || [
+        availableSheets: Array.from(
+          new Set([
+            ...(json.availableSheets || []),
             json.sheetName || SHEET_NAME || "Data",
             "DIL",
             ...TARGET_MONTHLY_SHEETS
-          ],
+          ])
+        ),
         updatedAt: json.updatedAt || new Date().toISOString(),
         sourceType: "gas_api"
       };
@@ -590,9 +682,10 @@ export async function fetchSpreadsheetData(
     }
   }
 
-  // 2. Direct Google Spreadsheet connection (fetches main Sheet + Sheet JUNI..DESEMBER + DIL in parallel)
+  // 2. Direct Google Spreadsheet connection (fetches main Sheet + Sheet JUNI..DESEMBER + SAMPLING + DIL in parallel)
   try {
-    const encodedSheet = encodeURIComponent(SHEET_NAME.trim() || "Data");
+    const requestedSheet = SHEET_NAME.trim() || "Data";
+    const encodedSheet = encodeURIComponent(requestedSheet);
     const gvizUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(
       SPREADSHEET_ID.trim()
     )}/gviz/tq?tqx=out:csv&sheet=${encodedSheet}`;
@@ -606,6 +699,7 @@ export async function fetchSpreadsheetData(
       oktoberLookup,
       novemberLookup,
       desemberLookup,
+      samplingLookup,
       dilLookup
     ] = await Promise.all([
       fetch(gvizUrl, { method: "GET", credentials: "omit" }),
@@ -616,25 +710,47 @@ export async function fetchSpreadsheetData(
       fetchSheetLocationLookupGviz(SPREADSHEET_ID, "OKTOBER"),
       fetchSheetLocationLookupGviz(SPREADSHEET_ID, "NOVEMBER"),
       fetchSheetLocationLookupGviz(SPREADSHEET_ID, "DESEMBER"),
+      fetchSheetLocationLookupGviz(SPREADSHEET_ID, "SAMPLING"),
       fetchDilMasterLookupGviz(SPREADSHEET_ID)
     ]);
 
-    if (!mainResponse.ok) {
-      throw new Error(`HTTP ${mainResponse.status}`);
+    let text = "";
+    let mainFetchOk = false;
+
+    if (mainResponse.ok) {
+      const contentType = mainResponse.headers.get("content-type") || "";
+      const bodyText = await mainResponse.text();
+      if (
+        !contentType.includes("text/html") &&
+        !bodyText.trim().startsWith("<!DOCTYPE html") &&
+        !bodyText.trim().startsWith("<html")
+      ) {
+        text = bodyText;
+        mainFetchOk = true;
+      }
     }
 
-    const contentType = mainResponse.headers.get("content-type") || "";
-    const text = await mainResponse.text();
+    // If the user selected a sheet (e.g. "SAMPLING") that hasn't been created in the remote Google Sheet yet
+    // or is empty, fall back to the "Data" sheet rows or local SAMPLING overrides so the table still loads properly.
+    if (!mainFetchOk && requestedSheet.toUpperCase() === "SAMPLING") {
+      const fallbackDataUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(
+        SPREADSHEET_ID.trim()
+      )}/gviz/tq?tqx=out:csv&sheet=Data`;
+      const fallbackRes = await fetch(fallbackDataUrl, { method: "GET", credentials: "omit" });
+      if (fallbackRes.ok) {
+        const fbText = await fallbackRes.text();
+        if (!fbText.trim().startsWith("<")) {
+          text = fbText;
+          mainFetchOk = true;
+        }
+      }
+    }
 
-    if (
-      contentType.includes("text/html") ||
-      text.trim().startsWith("<!DOCTYPE html") ||
-      text.trim().startsWith("<html")
-    ) {
+    if (!mainFetchOk) {
       throw new Error("PERMISSION_RESTRICTED");
     }
 
-    const parsed = parseRawCsvString(text, `${SHEET_NAME || "Data"}.csv`);
+    let parsed = parseRawCsvString(text, `${requestedSheet}.csv`);
     const monthlyLookups: MonthlyLookupsBySheet = {
       JUNI: juniLookup,
       JULI: juliLookup,
@@ -642,13 +758,68 @@ export async function fetchSpreadsheetData(
       SEPTEMBER: septemberLookup,
       OKTOBER: oktoberLookup,
       NOVEMBER: novemberLookup,
-      DESEMBER: desemberLookup
+      DESEMBER: desemberLookup,
+      SAMPLING: samplingLookup
     };
 
     mergeLocalOverridesIntoLookups(SPREADSHEET_ID, monthlyLookups);
 
+    // If active sheet is SAMPLING, ensure the rows displayed are strictly the DIL rows in Sheet SAMPLING
+    let baseRecordsForEnrich = parsed.allRecords;
+    if (requestedSheet.toUpperCase() === "SAMPLING") {
+      // Parse raw matrix of SAMPLING sheet if available so Column 1 (DIL) and Column 3 (Koordinat) are directly used
+      const samplingMatrix = Papa.parse<string[]>(text, {
+        header: false,
+        skipEmptyLines: "greedy"
+      }).data || [];
+
+      // Check if `text` actually came from SAMPLING sheet or fallback Data sheet
+      const samplingDirectLookup = buildSheetLocationLookupFromMatrix(samplingMatrix);
+      samplingDirectLookup.forEach((v, k) => {
+        if (v && v !== "-" && !monthlyLookups.SAMPLING.has(k)) {
+          monthlyLookups.SAMPLING.set(k, v);
+        } else if (!monthlyLookups.SAMPLING.has(k)) {
+          monthlyLookups.SAMPLING.set(k, "-");
+        }
+      });
+
+      const samplingKeys = new Set(
+        Array.from(monthlyLookups.SAMPLING.keys()).map((k) => k.trim().toLowerCase())
+      );
+
+      // Filter to only DILs present in Sheet SAMPLING
+      const filteredRecords = baseRecordsForEnrich.filter((r) => {
+        const k1 = r.dil !== "-" ? r.dil.trim().toLowerCase() : "";
+        const k2 = r.id !== "-" ? r.id.trim().toLowerCase() : "";
+        return (k1 && samplingKeys.has(k1)) || (k2 && samplingKeys.has(k2));
+      });
+
+      const existingSet = new Set<string>();
+      filteredRecords.forEach((r) => {
+        if (r.dil !== "-") existingSet.add(r.dil.trim().toLowerCase());
+        if (r.id !== "-") existingSet.add(r.id.trim().toLowerCase());
+      });
+
+      monthlyLookups.SAMPLING.forEach((coordStr, dilKey) => {
+        if (!existingSet.has(dilKey)) {
+          existingSet.add(dilKey);
+          const { record } = normalizeRowToRecord(
+            {
+              DIL: dilKey.toUpperCase(),
+              SAMPLING: coordStr !== "-" ? coordStr : ""
+            },
+            parsed.schemas,
+            filteredRecords.length
+          );
+          filteredRecords.push(record);
+        }
+      });
+
+      baseRecordsForEnrich = filteredRecords;
+    }
+
     const enrichedRecords = enrichRecordsWithMonthlyLocations(
-      parsed.allRecords,
+      baseRecordsForEnrich,
       parsed.schemas,
       monthlyLookups,
       dilLookup
@@ -658,9 +829,9 @@ export async function fetchSpreadsheetData(
       records: enrichedRecords,
       schemas: parsed.schemas,
       headers: parsed.schemas.map((s) => s.originalHeader),
-      sheetName: SHEET_NAME || "Data",
+      sheetName: requestedSheet,
       availableSheets: Array.from(
-        new Set([SHEET_NAME || "Data", "DIL", ...TARGET_MONTHLY_SHEETS])
+        new Set(["Data", requestedSheet, "DIL", ...TARGET_MONTHLY_SHEETS])
       ),
       updatedAt: new Date().toISOString(),
       sourceType: "gviz_direct"
@@ -672,7 +843,11 @@ export async function fetchSpreadsheetData(
     console.warn("Direct gviz fetch notice:", directErr);
 
     const cached = loadLocalDatasetCache(SPREADSHEET_ID);
-    if (cached) {
+    if (
+      cached &&
+      (cached.sheetName || "").trim().toUpperCase() ===
+        (SHEET_NAME.trim() || "Data").toUpperCase()
+    ) {
       return {
         ...cached,
         sourceType: "local_cache",
@@ -694,6 +869,7 @@ function extractRecordCoordString(rec: LocationRecord): string {
   if (rec.latitude !== null && rec.longitude !== null && rec.hasValidCoords) {
     return `${rec.latitude}, ${rec.longitude}`;
   }
+  if (rec.lokasiSampling && rec.lokasiSampling !== "-") return rec.lokasiSampling;
   if (rec.koordinatDil && rec.koordinatDil !== "-") return rec.koordinatDil;
   if (rec.lokasiSeptember && rec.lokasiSeptember !== "-") return rec.lokasiSeptember;
   if (rec.lokasiAgustus && rec.lokasiAgustus !== "-") return rec.lokasiAgustus;
@@ -786,7 +962,8 @@ export async function importCsvToSpreadsheet(params: {
     SEPTEMBER: new Map(),
     OKTOBER: new Map(),
     NOVEMBER: new Map(),
-    DESEMBER: new Map()
+    DESEMBER: new Map(),
+    SAMPLING: new Map()
   };
 
   existingRecords.forEach((rec) => {
@@ -797,6 +974,7 @@ export async function importCsvToSpreadsheet(params: {
         ? rec.id.trim().toLowerCase()
         : "";
     if (!k) return;
+    if (rec.lokasiSampling && rec.lokasiSampling !== "-") monthlyLookups.SAMPLING.set(k, rec.lokasiSampling);
     if (rec.lokasiJuni && rec.lokasiJuni !== "-") monthlyLookups.JUNI.set(k, rec.lokasiJuni);
     if (rec.lokasiJuli && rec.lokasiJuli !== "-") monthlyLookups.JULI.set(k, rec.lokasiJuli);
     if (rec.lokasiAgustus && rec.lokasiAgustus !== "-") monthlyLookups.AGUSTUS.set(k, rec.lokasiAgustus);
@@ -861,14 +1039,34 @@ export async function importCsvToSpreadsheet(params: {
     SEPTEMBER: "202609",
     OKTOBER: "202610",
     NOVEMBER: "202611",
-    DESEMBER: "202612"
+    DESEMBER: "202612",
+    SAMPLING: "SAMPLING"
   };
 
-  const monthlySheetHeaders = ["IDPEL", "BLTH", "LATITUDE", "LONGITUDE", "NAMA", "ALAMAT"];
+  const isSamplingUpload = upperTarget === "SAMPLING";
+  const monthlySheetHeaders = isSamplingUpload
+    ? ["IDPEL", "BLTH", "KOORDINAT", "NAMA", "ALAMAT"]
+    : ["IDPEL", "BLTH", "LATITUDE", "LONGITUDE", "NAMA", "ALAMAT"];
+
   const monthlySheetRows = incomingRecords.map((r) => {
     const idVal = r.id !== "-" ? r.id : r.dil !== "-" ? r.dil : "";
     const coordStr = extractRecordCoordString(r);
     const parsed = parseCombinedLocationString(coordStr);
+    const combinedCoord =
+      parsed.isValid && parsed.lat !== null && parsed.lng !== null
+        ? `${parsed.lat}, ${parsed.lng}`
+        : coordStr;
+
+    if (isSamplingUpload) {
+      return {
+        IDPEL: idVal,
+        BLTH: r.rawValues["BLTH"] || monthNumberMap[upperTarget] || "",
+        KOORDINAT: combinedCoord,
+        NAMA: r.nama !== "-" ? r.nama : "",
+        ALAMAT: r.alamat !== "-" ? r.alamat : ""
+      };
+    }
+
     return {
       IDPEL: idVal,
       BLTH: r.rawValues["BLTH"] || monthNumberMap[upperTarget] || "",

@@ -40,11 +40,27 @@ const MONTH_BLTH_MAP: Record<TargetMonthlySheet, string> = {
   SEPTEMBER: "202609",
   OKTOBER: "202610",
   NOVEMBER: "202611",
-  DESEMBER: "202612"
+  DESEMBER: "202612",
+  SAMPLING: "202609"
 };
 
 function buildMonthlyTemplateCsv(targetSheet: TargetMonthlySheet, includeSampleRows = true): string {
   const blth = MONTH_BLTH_MAP[targetSheet] || "202609";
+  if (targetSheet === "SAMPLING") {
+    const header = "DIL,BLTH,KOORDINAT,NAMA,ALAMAT";
+    if (!includeSampleRows) {
+      return header + "\n";
+    }
+    const rows = [
+      `131000010536,${blth},"-0.305120, 100.369450",PT Sinar Minang Sejahtera,Jl. Sudirman No. 42 Bukittinggi`,
+      `131000041251,${blth},"-0.304280, 100.368810",Hotel Grand Royal Jam Gadang,Jl. Yos Sudarso No. 12 Benteng Pasar Atas`,
+      `131000051292,${blth},"-0.300890, 100.366120",RSUD Dr. Achmad Mochtar,Jl. Dr. A. Rivai No. 1 Bukittinggi`,
+      `131000051682,${blth},"-0.316450, 100.384210",Pasar Aur Kuning Blok A,Jl. Bypass Aur Kuning Bukittinggi`,
+      `131000052790,${blth},"-0.289650, 100.374800",Kantor Wali Kota Bukittinggi,Jl. Kusuma Bhakti Gulai Bancah`
+    ];
+    return [header, ...rows].join("\n");
+  }
+
   const header = "IDPEL,BLTH,LATITUDE,LONGITUDE,NAMA,ALAMAT";
   if (!includeSampleRows) {
     return header + "\n";
@@ -291,7 +307,9 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({
               <span>
                 Format Kolom Sheet <strong className="font-mono text-slate-900">{targetSheet}</strong>:{" "}
                 <code className="font-mono text-blue-700">
-                  Kolom 1: IDPEL/DIL · Kolom 2: BLTH · Kolom 3: LATITUDE · Kolom 4: LONGITUDE
+                  {targetSheet === "SAMPLING"
+                    ? "Kolom 1: DIL/IDPEL · Kolom 2: BLTH · Kolom 3: KOORDINAT (Lat, Lng)"
+                    : "Kolom 1: IDPEL/DIL · Kolom 2: BLTH · Kolom 3: LATITUDE · Kolom 4: LONGITUDE"}
                 </code>
               </span>
               <button

@@ -18,6 +18,7 @@ export interface LocationRecord {
   nama: string;
   alamat: string;
   koordinatDil: string;
+  lokasiSampling: string;
   unit: string;
   petugas: string;
   status: string;
@@ -46,6 +47,23 @@ export interface LocationRecord {
   jarakDilNovemberMeters: number | null;
   jarakDilDesember: string;
   jarakDilDesemberMeters: number | null;
+  // JARAK DENGAN SAMPLING (distance in meters between Koordinat SAMPLING and DIL / monthly coordinates)
+  jarakSamplingDil: string;
+  jarakSamplingDilMeters: number | null;
+  jarakSamplingJuni: string;
+  jarakSamplingJuniMeters: number | null;
+  jarakSamplingJuli: string;
+  jarakSamplingJuliMeters: number | null;
+  jarakSamplingAgustus: string;
+  jarakSamplingAgustusMeters: number | null;
+  jarakSamplingSeptember: string;
+  jarakSamplingSeptemberMeters: number | null;
+  jarakSamplingOktober: string;
+  jarakSamplingOktoberMeters: number | null;
+  jarakSamplingNovember: string;
+  jarakSamplingNovemberMeters: number | null;
+  jarakSamplingDesember: string;
+  jarakSamplingDesemberMeters: number | null;
   // JARAK ANTAR BULAN (distance in meters between consecutive months)
   jarakJuli: string; // JUNI - JULI
   jarakJuliMeters: number | null;
@@ -60,6 +78,7 @@ export interface LocationRecord {
   jarakDesember: string; // NOVEMBER - DESEMBER
   jarakDesemberMeters: number | null;
   coordDil: MonthlyCoord | null;
+  coordSampling: MonthlyCoord | null;
   coordJuni: MonthlyCoord | null;
   coordJuli: MonthlyCoord | null;
   coordAgustus: MonthlyCoord | null;
@@ -150,6 +169,7 @@ export function normalizeRowToRecord(
   let nama = "";
   let alamat = "";
   let koordinatDil = "";
+  let lokasiSampling = "";
   let unit = "";
   let petugas = "";
   let status = "";
@@ -182,6 +202,9 @@ export function normalizeRowToRecord(
     rawValues[col.originalHeader] = cleanVal;
 
     switch (col.canonicalRole) {
+      case "sampling":
+        lokasiSampling = cleanVal;
+        break;
       case "dil":
         dil = cleanVal;
         break;
@@ -245,7 +268,7 @@ export function normalizeRowToRecord(
     }
   }
 
-  // Fallback for positional monthly sheet CSV where Column 1 is IDPEL/DIL and Column 3 & Column 4 are Latitude & Longitude
+  // Fallback for positional sheet CSV where Column 1 is IDPEL/DIL and Column 3 (index 2) is combined Coordinate ("lat, lng") or Column 3 & Column 4 are Latitude & Longitude
   const rawRowKeys = Object.keys(rawRow);
   if (!id && !dil && rawRowKeys.length > 0) {
     const firstColVal = String(rawRow[rawRowKeys[0]] ?? "").trim();
@@ -254,13 +277,24 @@ export function normalizeRowToRecord(
       dil = firstColVal;
     }
   }
-  if (!rawLat && !rawLng && rawRowKeys.length >= 4) {
+  if (!rawLat && !rawLng && rawRowKeys.length >= 3) {
     const col3Val = String(rawRow[rawRowKeys[2]] ?? "").trim();
-    const col4Val = String(rawRow[rawRowKeys[3]] ?? "").trim();
-    const checkPos = parseAndValidateCoordinates(col3Val, col4Val);
-    if (checkPos.isValid && checkPos.lat !== null && checkPos.lng !== null) {
-      rawLat = col3Val;
-      rawLng = col4Val;
+    const col4Val = rawRowKeys.length >= 4 ? String(rawRow[rawRowKeys[3]] ?? "").trim() : "";
+
+    // Check if Column 3 alone is a combined coordinate string ("lat, lng")
+    const combinedCol3 = parseCombinedLocationString(col3Val);
+    if (combinedCol3.isValid && combinedCol3.lat !== null && combinedCol3.lng !== null) {
+      rawLat = String(combinedCol3.lat);
+      rawLng = String(combinedCol3.lng);
+      if (!lokasiSampling) {
+        lokasiSampling = `${combinedCol3.lat}, ${combinedCol3.lng}`;
+      }
+    } else if (col4Val) {
+      const checkPos = parseAndValidateCoordinates(col3Val, col4Val);
+      if (checkPos.isValid && checkPos.lat !== null && checkPos.lng !== null) {
+        rawLat = col3Val;
+        rawLng = col4Val;
+      }
     }
   }
 
@@ -356,6 +390,13 @@ export function normalizeRowToRecord(
     return p.isValid && p.lat !== null && p.lng !== null ? { lat: p.lat, lng: p.lng } : null;
   };
 
+  const coordSampling =
+    toCoordObj(lokasiSampling) ||
+    (latitude !== null && longitude !== null ? { lat: latitude, lng: longitude } : null);
+  if (!lokasiSampling && coordSampling && hasLatSchema && hasLngSchema) {
+    lokasiSampling = `${coordSampling.lat}, ${coordSampling.lng}`;
+  }
+
   const coordJuni = toCoordObj(lokasiJuni);
   const coordJuli = toCoordObj(lokasiJuli);
   const coordAgustus = toCoordObj(lokasiAgustus);
@@ -378,6 +419,16 @@ export function normalizeRowToRecord(
   const dDilNovember = calcDistPair(coordDil, coordNovember);
   const dDilDesember = calcDistPair(coordDil, coordDesember);
 
+  // JARAK DENGAN SAMPLING
+  const dSamplingDil = calcDistPair(coordSampling, coordDil);
+  const dSamplingJuni = calcDistPair(coordSampling, coordJuni);
+  const dSamplingJuli = calcDistPair(coordSampling, coordJuli);
+  const dSamplingAgustus = calcDistPair(coordSampling, coordAgustus);
+  const dSamplingSeptember = calcDistPair(coordSampling, coordSeptember);
+  const dSamplingOktober = calcDistPair(coordSampling, coordOktober);
+  const dSamplingNovember = calcDistPair(coordSampling, coordNovember);
+  const dSamplingDesember = calcDistPair(coordSampling, coordDesember);
+
   // JARAK ANTAR BULAN
   const dJuniJuli = calcDistPair(coordJuni, coordJuli);
   const dJuliAgustus = calcDistPair(coordJuli, coordAgustus);
@@ -389,6 +440,7 @@ export function normalizeRowToRecord(
   if (!hasValidCoords) {
     const fallbackCoord =
       coordDil ||
+      coordSampling ||
       coordDesember ||
       coordNovember ||
       coordOktober ||
@@ -412,6 +464,7 @@ export function normalizeRowToRecord(
     }
   };
 
+  syncRoleVal("sampling", lokasiSampling);
   syncRoleVal("koordinat_dil", koordinatDil);
   syncRoleVal("lokasi_juni", lokasiJuni);
   syncRoleVal("lokasi_juli", lokasiJuli);
@@ -421,6 +474,7 @@ export function normalizeRowToRecord(
   syncRoleVal("lokasi_november", lokasiNovember);
   syncRoleVal("lokasi_desember", lokasiDesember);
 
+  syncRoleVal("jarak_dil_sampling", dSamplingDil.text);
   syncRoleVal("jarak_dil_juni", dDilJuni.text);
   syncRoleVal("jarak_dil_juli", dDilJuli.text);
   syncRoleVal("jarak_dil_agustus", dDilAgustus.text);
@@ -446,6 +500,7 @@ export function normalizeRowToRecord(
     nama: nama || "-",
     alamat: alamat || "-",
     koordinatDil: koordinatDil || "-",
+    lokasiSampling: lokasiSampling || "-",
     unit: unit || "-",
     petugas: petugas || "-",
     status: status || "-",
@@ -473,6 +528,22 @@ export function normalizeRowToRecord(
     jarakDilNovemberMeters: dDilNovember.meters,
     jarakDilDesember: dDilDesember.text,
     jarakDilDesemberMeters: dDilDesember.meters,
+    jarakSamplingDil: dSamplingDil.text,
+    jarakSamplingDilMeters: dSamplingDil.meters,
+    jarakSamplingJuni: dSamplingJuni.text,
+    jarakSamplingJuniMeters: dSamplingJuni.meters,
+    jarakSamplingJuli: dSamplingJuli.text,
+    jarakSamplingJuliMeters: dSamplingJuli.meters,
+    jarakSamplingAgustus: dSamplingAgustus.text,
+    jarakSamplingAgustusMeters: dSamplingAgustus.meters,
+    jarakSamplingSeptember: dSamplingSeptember.text,
+    jarakSamplingSeptemberMeters: dSamplingSeptember.meters,
+    jarakSamplingOktober: dSamplingOktober.text,
+    jarakSamplingOktoberMeters: dSamplingOktober.meters,
+    jarakSamplingNovember: dSamplingNovember.text,
+    jarakSamplingNovemberMeters: dSamplingNovember.meters,
+    jarakSamplingDesember: dSamplingDesember.text,
+    jarakSamplingDesemberMeters: dSamplingDesember.meters,
     jarakJuli: dJuniJuli.text,
     jarakJuliMeters: dJuniJuli.meters,
     jarakAgustus: dJuliAgustus.text,
@@ -486,6 +557,7 @@ export function normalizeRowToRecord(
     jarakDesember: dNovemberDesember.text,
     jarakDesemberMeters: dNovemberDesember.meters,
     coordDil,
+    coordSampling,
     coordJuni,
     coordJuli,
     coordAgustus,
@@ -515,8 +587,9 @@ export function buildSheetLocationLookupFromMatrix(
 
   const firstRow = matrix[0].map((c) => String(c ?? "").trim());
 
-  const col3FirstCheck = parseAndValidateCoordinates(firstRow[2], firstRow[3]);
-  const startRowIdx = col3FirstCheck.isValid ? 0 : 1;
+  const col3CombinedFirst = parseCombinedLocationString(firstRow[2] || "");
+  const col3PairFirst = parseAndValidateCoordinates(firstRow[2], firstRow[3]);
+  const startRowIdx = col3CombinedFirst.isValid || col3PairFirst.isValid ? 0 : 1;
 
   // Identify IDPEL / DIL key columns (never include BLTH)
   const keyColIndices = new Set<number>([0]);
@@ -541,8 +614,23 @@ export function buildSheetLocationLookupFromMatrix(
 
     let combinedLocation = "";
 
-    // Ambil Kolom ke-3 (index 2 = Latitude) dan Kolom ke-4 (index 3 = Longitude)
-    if (row.length >= 4) {
+    // 1. Cek Kolom ke-3 (index 2): apakah sudah berupa titik koordinat gabungan ("lat, lng")
+    if (row.length >= 3) {
+      const rawCol3 = String(row[2] ?? "").trim();
+      if (rawCol3 !== "" && rawCol3 !== "-") {
+        const parsedCombined = parseCombinedLocationString(rawCol3);
+        if (
+          parsedCombined.isValid &&
+          parsedCombined.lat !== null &&
+          parsedCombined.lng !== null
+        ) {
+          combinedLocation = `${parsedCombined.lat}, ${parsedCombined.lng}`;
+        }
+      }
+    }
+
+    // 2. Jika belum valid dari Kolom ke-3 saja, cek gabungan Kolom ke-3 (Latitude) dan Kolom ke-4 (Longitude)
+    if (!combinedLocation && row.length >= 4) {
       const rawCol3Lat = String(row[2] ?? "").trim();
       const rawCol4Lng = String(row[3] ?? "").trim();
 
@@ -556,12 +644,16 @@ export function buildSheetLocationLookupFromMatrix(
       }
     }
 
-    if (!combinedLocation) continue;
-
+    // Simpan ke lookup bahkan jika titik koordinat di Sheet SAMPLING kosong ("-"),
+    // atau jika valid simpan koordinatnya
     keyColIndices.forEach((colIdx) => {
       const keyVal = String(row[colIdx] ?? "").trim().toLowerCase();
       if (keyVal && keyVal !== "-") {
-        lookup.set(keyVal, combinedLocation);
+        if (combinedLocation) {
+          lookup.set(keyVal, combinedLocation);
+        } else if (!lookup.has(keyVal)) {
+          lookup.set(keyVal, "-");
+        }
       }
     });
   }

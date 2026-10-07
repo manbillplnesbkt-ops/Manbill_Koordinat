@@ -26,6 +26,7 @@ interface CoordGroup {
 
 interface MonthlyPointInfo {
   month:
+    | "SAMPLING"
     | "DIL"
     | "JUNI"
     | "JULI"
@@ -92,6 +93,15 @@ export const MapView: React.FC<MapViewProps> = ({
         ? selectedRecord.id
         : "";
 
+    if (selectedRecord.coordSampling) {
+      points.push({
+        month: "SAMPLING",
+        badgeText: "SAMPLING",
+        color: "#e11d48", // Rose / Crimson
+        coord: selectedRecord.coordSampling,
+        label: selectedRecord.lokasiSampling
+      });
+    }
     if (resolvedCoordDil) {
       points.push({
         month: "DIL",

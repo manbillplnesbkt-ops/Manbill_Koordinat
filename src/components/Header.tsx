@@ -43,6 +43,14 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, [lastUpdated]);
 
+  const uniqueSheets = React.useMemo(
+    () =>
+      Array.from(
+        new Set(availableSheets.map((s) => String(s || "").trim()).filter(Boolean))
+      ),
+    [availableSheets]
+  );
+
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between px-4 lg:px-6 py-2.5 min-h-14 bg-white border-b border-slate-200 gap-3">
       {/* Zone 1: Brand Title & Subtitles */}
@@ -76,14 +84,14 @@ export const Header: React.FC<HeaderProps> = ({
           <label htmlFor="header-sheet-select" className="text-slate-500">
             Sheet:
           </label>
-          {availableSheets.length > 1 ? (
+          {uniqueSheets.length > 1 ? (
             <select
               id="header-sheet-select"
               value={activeSheetName}
               onChange={(e) => onSelectSheet(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
             >
-              {availableSheets.map((s) => (
+              {uniqueSheets.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>

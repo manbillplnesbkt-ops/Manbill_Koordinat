@@ -39,9 +39,23 @@ export default function App() {
   const [schemas, setSchemas] = React.useState<ColumnSchema[]>([]);
   const [headers, setHeaders] = React.useState<string[]>([]);
   const [visibleColumns, setVisibleColumns] = React.useState<string[]>([]);
-  const [availableSheets, setAvailableSheets] = React.useState<string[]>([
-    config.SHEET_NAME || "Data"
-  ]);
+  const [availableSheets, setAvailableSheets] = React.useState<string[]>(() =>
+    Array.from(
+      new Set([
+        config.SHEET_NAME || "Data",
+        "Data",
+        "DIL",
+        "JUNI",
+        "JULI",
+        "AGUSTUS",
+        "SEPTEMBER",
+        "OKTOBER",
+        "NOVEMBER",
+        "DESEMBER",
+        "SAMPLING"
+      ])
+    )
+  );
   const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
 
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
@@ -98,7 +112,7 @@ export default function App() {
         setHeaders(data.headers);
         setAvailableSheets(
           data.availableSheets.length > 0
-            ? data.availableSheets
+            ? Array.from(new Set(data.availableSheets.map((s) => s.trim()).filter(Boolean)))
             : [activeConfig.SHEET_NAME || "Data"]
         );
         setLastUpdated(data.updatedAt);
@@ -108,16 +122,29 @@ export default function App() {
         }
 
         // Initialize visible columns on first load or if schema changed
+        const isSamplingActive =
+          (activeConfig.SHEET_NAME || "").trim().toUpperCase() === "SAMPLING";
         setVisibleColumns((prev) => {
           const validPrev = prev.filter((k) =>
             data.schemas.some((s) => s.normalizedKey === k)
           );
           const defaultKeys = data.schemas
-            .filter((s) => s.isDefaultVisible)
+            .filter(
+              (s) =>
+                s.isDefaultVisible ||
+                (isSamplingActive && s.canonicalRole === "sampling")
+            )
             .map((s) => s.normalizedKey);
 
           if (validPrev.length > 0) {
-            return Array.from(new Set([...defaultKeys, ...validPrev]));
+            const combined = Array.from(new Set([...defaultKeys, ...validPrev]));
+            if (!isSamplingActive) {
+              const samplingKey = data.schemas.find(
+                (s) => s.canonicalRole === "sampling"
+              )?.normalizedKey;
+              return samplingKey ? combined.filter((k) => k !== samplingKey) : combined;
+            }
+            return combined;
           }
           return defaultKeys;
         });
@@ -194,6 +221,7 @@ export default function App() {
           rec.nama.toLowerCase().includes(q) ||
           rec.alamat.toLowerCase().includes(q) ||
           rec.koordinatDil.toLowerCase().includes(q) ||
+          rec.lokasiSampling.toLowerCase().includes(q) ||
           rec.unit.toLowerCase().includes(q) ||
           rec.petugas.toLowerCase().includes(q) ||
           rec.status.toLowerCase().includes(q) ||
@@ -296,7 +324,8 @@ export default function App() {
       SEPTEMBER: ["lokasi_september", "jarak_dil_september", "jarak_september"],
       OKTOBER: ["lokasi_oktober", "jarak_dil_oktober", "jarak_oktober"],
       NOVEMBER: ["lokasi_november", "jarak_dil_november", "jarak_november"],
-      DESEMBER: ["lokasi_desember", "jarak_dil_desember", "jarak_desember"]
+      DESEMBER: ["lokasi_desember", "jarak_dil_desember", "jarak_desember"],
+      SAMPLING: ["sampling"]
     };
 
     const targetRoles = monthRoleMap[params.targetSheet] || [];
@@ -469,6 +498,7 @@ export default function App() {
             records={filteredRecords}
             schemas={schemas}
             visibleColumns={visibleColumns}
+            activeSheetName={config.SHEET_NAME}
             selectedRecordId={selectedRecordId}
             onSelectRecord={handleSelectRecordFromTable}
             isLoading={isLoading}

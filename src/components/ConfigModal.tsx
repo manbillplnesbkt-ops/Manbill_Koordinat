@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Copy, Check, RotateCcw, Database, Code2 } from "lucide-react";
+import { X, Copy, Check, RotateCcw, Database, Code2, Lock, KeyRound, AlertCircle } from "lucide-react";
 import { AppConfig, DEFAULT_CONFIG } from "../config/config";
 
 interface ConfigModalProps {
@@ -161,6 +161,10 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onSaveConfig,
   onResetDefault
 }) => {
+  const [isUnlocked, setIsUnlocked] = React.useState(false);
+  const [passwordInput, setPasswordInput] = React.useState("");
+  const [passwordError, setPasswordError] = React.useState<string | null>(null);
+
   const [activeTab, setActiveTab] = React.useState<"settings" | "gas_code">("settings");
   const [spreadsheetId, setSpreadsheetId] = React.useState(config.SPREADSHEET_ID);
   const [folderId, setFolderId] = React.useState(config.FOLDER_ID);
@@ -170,6 +174,9 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 
   React.useEffect(() => {
     if (isOpen) {
+      setIsUnlocked(false);
+      setPasswordInput("");
+      setPasswordError(null);
       setSpreadsheetId(config.SPREADSHEET_ID);
       setFolderId(config.FOLDER_ID);
       setSheetName(config.SHEET_NAME);
@@ -178,6 +185,16 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   }, [isOpen, config]);
 
   if (!isOpen) return null;
+
+  const handleVerifyPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === "adminmanbill") {
+      setIsUnlocked(true);
+      setPasswordError(null);
+    } else {
+      setPasswordError("Password salah. Silakan masukkan password yang benar.");
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,6 +212,91 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  if (!isUnlocked) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="config-password-dialog-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-[2px] p-4"
+      >
+        <div className="bg-white border border-slate-200 rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-blue-600" />
+              <h2
+                id="config-password-dialog-title"
+                className="text-sm font-bold text-slate-900"
+              >
+                Autentikasi Konfigurasi Database
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Tutup dialog"
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <form onSubmit={handleVerifyPassword} className="p-5 space-y-4 text-xs">
+            <p className="text-slate-600 leading-relaxed">
+              Masukkan password administrator untuk membuka menu <strong>Konfigurasi Database</strong>.
+            </p>
+
+            <div>
+              <label
+                htmlFor="config-admin-password"
+                className="block font-semibold text-slate-800 mb-1.5"
+              >
+                Password Konfigurasi
+              </label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="config-admin-password"
+                  type="password"
+                  autoFocus
+                  value={passwordInput}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value);
+                    if (passwordError) setPasswordError(null);
+                  }}
+                  placeholder="Masukkan password..."
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+              </div>
+              {passwordError && (
+                <div className="mt-2 flex items-center gap-1.5 text-red-600 font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 cursor-pointer"
+              >
+                Buka Konfigurasi
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

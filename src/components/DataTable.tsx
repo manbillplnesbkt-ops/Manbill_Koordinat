@@ -22,6 +22,7 @@ interface DataTableProps {
   records: LocationRecord[];
   schemas: ColumnSchema[];
   visibleColumns: string[];
+  activeSheetName?: string;
   selectedRecordId: string | null;
   onSelectRecord: (record: LocationRecord) => void;
   isLoading: boolean;
@@ -66,6 +67,7 @@ const JARAK_BULAN_GROUP_ROLES: CanonicalField[] = [
 ];
 
 const SUB_HEADER_LABELS: Partial<Record<CanonicalField, string>> = {
+  sampling: "SAMPLING",
   dil: "DIL",
   nama: "NAMA",
   alamat: "ALAMAT",
@@ -77,6 +79,7 @@ const SUB_HEADER_LABELS: Partial<Record<CanonicalField, string>> = {
   lokasi_oktober: "OKTOBER",
   lokasi_november: "NOVEMBER",
   lokasi_desember: "DESEMBER",
+  jarak_dil_sampling: "DIL",
   jarak_dil_juni: "JUNI",
   jarak_dil_juli: "JULI",
   jarak_dil_agustus: "AGUSTUS",
@@ -92,10 +95,20 @@ const SUB_HEADER_LABELS: Partial<Record<CanonicalField, string>> = {
   jarak_desember: "NOVEMBER - DESEMBER"
 };
 
+const SAMPLING_JARAK_BULAN_SUB_LABELS: Partial<Record<CanonicalField, string>> = {
+  jarak_juli: "SAMPLING - JUNI",
+  jarak_agustus: "SAMPLING - JULI",
+  jarak_september: "SAMPLING - AGUSTUS",
+  jarak_oktober: "SAMPLING - SEPTEMBER",
+  jarak_november: "SAMPLING - OKTOBER",
+  jarak_desember: "SAMPLING - NOVEMBER"
+};
+
 export const DataTable: React.FC<DataTableProps> = ({
   records,
   schemas,
   visibleColumns,
+  activeSheetName,
   selectedRecordId,
   onSelectRecord,
   isLoading,
@@ -170,6 +183,9 @@ export const DataTable: React.FC<DataTableProps> = ({
     }
   };
 
+  const isSamplingSheetSelected =
+    (activeSheetName || "").trim().toUpperCase() === "SAMPLING";
+
   const {
     leftCols,
     coordCols,
@@ -186,12 +202,61 @@ export const DataTable: React.FC<DataTableProps> = ({
         .map((role) => baseList.find((s) => s.canonicalRole === role))
         .filter((s): s is ColumnSchema => Boolean(s));
 
+    // Guarantee column order:
+    // Left main columns: DIL, NAMA, ALAMAT
+    // Under KOORDINAT group: [SAMPLING (before Koordinat DIL when SAMPLING sheet is active)], DIL (Koordinat DIL), JUNI..DESEMBER
+    let samplingColSchemas: ColumnSchema[] = [];
+    if (isSamplingSheetSelected) {
+      const foundSampling =
+        schemas.find((s) => s.canonicalRole === "sampling") ||
+        baseList.find((s) => s.canonicalRole === "sampling");
+      if (foundSampling) {
+        samplingColSchemas = [foundSampling];
+      }
+    } else {
+      samplingColSchemas = pickByRoles(["sampling"]);
+    }
+
+    // Under JARAK DENGAN DIL / JARAK DENGAN SAMPLING:
+    // If SAMPLING sheet is selected, place DIL (jarak_dil_sampling) before JUNI
+    let jarakDilSamplingCol: ColumnSchema[] = [];
+    if (isSamplingSheetSelected) {
+      const foundJarakSamplingDil =
+        schemas.find((s) => s.canonicalRole === "jarak_dil_sampling") ||
+        baseList.find((s) => s.canonicalRole === "jarak_dil_sampling");
+      if (foundJarakSamplingDil) {
+        jarakDilSamplingCol = [foundJarakSamplingDil];
+      }
+    }
+
+    // Under JARAK ANTAR BULAN:
+    // If SAMPLING sheet is selected, ensure the 4 columns SAMPLING - JUNI, SAMPLING - JULI, SAMPLING - AGUSTUS, SAMPLING - SEPTEMBER are included
+    let jarakBulan: ColumnSchema[] = [];
+    if (isSamplingSheetSelected) {
+      const samplingBulanRoles: CanonicalField[] = [
+        "jarak_juli",
+        "jarak_agustus",
+        "jarak_september",
+        "jarak_oktober"
+      ];
+      jarakBulan = samplingBulanRoles
+        .map(
+          (role) =>
+            baseList.find((s) => s.canonicalRole === role) ||
+            schemas.find((s) => s.canonicalRole === role)
+        )
+        .filter((s): s is ColumnSchema => Boolean(s));
+    } else {
+      jarakBulan = pickByRoles(JARAK_BULAN_GROUP_ROLES);
+    }
+
     const left = pickByRoles(LEFT_MAIN_ROLES);
-    const coord = pickByRoles(KOORDINAT_GROUP_ROLES);
-    const jarakDil = pickByRoles(JARAK_DIL_GROUP_ROLES);
-    const jarakBulan = pickByRoles(JARAK_BULAN_GROUP_ROLES);
+    const coord = [...samplingColSchemas, ...pickByRoles(KOORDINAT_GROUP_ROLES)];
+    const jarakDil = [...jarakDilSamplingCol, ...pickByRoles(JARAK_DIL_GROUP_ROLES)];
 
     const allGroupedRoles = new Set<CanonicalField>([
+      "sampling",
+      "jarak_dil_sampling",
       ...LEFT_MAIN_ROLES,
       ...KOORDINAT_GROUP_ROLES,
       ...JARAK_DIL_GROUP_ROLES,
@@ -210,7 +275,7 @@ export const DataTable: React.FC<DataTableProps> = ({
       extraCols: extra,
       activeSchemas: [...left, ...coord, ...jarakDil, ...jarakBulan, ...extra]
     };
-  }, [schemas, visibleColumns]);
+  }, [schemas, visibleColumns, isSamplingSheetSelected]);
 
   // Sort records
   const sortedRecords = React.useMemo(() => {
@@ -244,59 +309,98 @@ export const DataTable: React.FC<DataTableProps> = ({
       const role = targetSchema.canonicalRole;
 
       // Numeric distance sorting
+      if (role === "jarak_dil_sampling") {
+        const dA = a.jarakSamplingDilMeters ?? -1;
+        const dB = b.jarakSamplingDilMeters ?? -1;
+        return sortDirection === "asc" ? dA - dB : dB - dA;
+      }
       if (role === "jarak_dil_juni") {
-        const dA = a.jarakDilJuniMeters ?? -1;
-        const dB = b.jarakDilJuniMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected ? a.jarakSamplingJuniMeters : a.jarakDilJuniMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected ? b.jarakSamplingJuniMeters : b.jarakDilJuniMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_dil_juli") {
-        const dA = a.jarakDilJuliMeters ?? -1;
-        const dB = b.jarakDilJuliMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected ? a.jarakSamplingJuliMeters : a.jarakDilJuliMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected ? b.jarakSamplingJuliMeters : b.jarakDilJuliMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_dil_agustus") {
-        const dA = a.jarakDilAgustusMeters ?? -1;
-        const dB = b.jarakDilAgustusMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected ? a.jarakSamplingAgustusMeters : a.jarakDilAgustusMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected ? b.jarakSamplingAgustusMeters : b.jarakDilAgustusMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_dil_september") {
-        const dA = a.jarakDilSeptemberMeters ?? -1;
-        const dB = b.jarakDilSeptemberMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected
+            ? a.jarakSamplingSeptemberMeters
+            : a.jarakDilSeptemberMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected
+            ? b.jarakSamplingSeptemberMeters
+            : b.jarakDilSeptemberMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_dil_oktober") {
-        const dA = a.jarakDilOktoberMeters ?? -1;
-        const dB = b.jarakDilOktoberMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected ? a.jarakSamplingOktoberMeters : a.jarakDilOktoberMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected ? b.jarakSamplingOktoberMeters : b.jarakDilOktoberMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_dil_november") {
-        const dA = a.jarakDilNovemberMeters ?? -1;
-        const dB = b.jarakDilNovemberMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected
+            ? a.jarakSamplingNovemberMeters
+            : a.jarakDilNovemberMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected
+            ? b.jarakSamplingNovemberMeters
+            : b.jarakDilNovemberMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_dil_desember") {
-        const dA = a.jarakDilDesemberMeters ?? -1;
-        const dB = b.jarakDilDesemberMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected
+            ? a.jarakSamplingDesemberMeters
+            : a.jarakDilDesemberMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected
+            ? b.jarakSamplingDesemberMeters
+            : b.jarakDilDesemberMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_juli") {
-        const dA = a.jarakJuliMeters ?? -1;
-        const dB = b.jarakJuliMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected ? a.jarakSamplingJuniMeters : a.jarakJuliMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected ? b.jarakSamplingJuniMeters : b.jarakJuliMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_agustus") {
-        const dA = a.jarakAgustusMeters ?? -1;
-        const dB = b.jarakAgustusMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected ? a.jarakSamplingJuliMeters : a.jarakAgustusMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected ? b.jarakSamplingJuliMeters : b.jarakAgustusMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_september") {
-        const dA = a.jarakSeptemberMeters ?? -1;
-        const dB = b.jarakSeptemberMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected ? a.jarakSamplingAgustusMeters : a.jarakSeptemberMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected ? b.jarakSamplingAgustusMeters : b.jarakSeptemberMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_oktober") {
-        const dA = a.jarakOktoberMeters ?? -1;
-        const dB = b.jarakOktoberMeters ?? -1;
+        const dA =
+          (isSamplingSheetSelected ? a.jarakSamplingSeptemberMeters : a.jarakOktoberMeters) ?? -1;
+        const dB =
+          (isSamplingSheetSelected ? b.jarakSamplingSeptemberMeters : b.jarakOktoberMeters) ?? -1;
         return sortDirection === "asc" ? dA - dB : dB - dA;
       }
       if (role === "jarak_november") {
@@ -313,7 +417,10 @@ export const DataTable: React.FC<DataTableProps> = ({
       let valA = a.rawValues[targetSchema.originalHeader] ?? "";
       let valB = b.rawValues[targetSchema.originalHeader] ?? "";
 
-      if (role === "dil") {
+      if (role === "sampling") {
+        valA = a.lokasiSampling !== "-" ? a.lokasiSampling : "";
+        valB = b.lokasiSampling !== "-" ? b.lokasiSampling : "";
+      } else if (role === "dil") {
         valA = a.dil !== "-" ? a.dil : "";
         valB = b.dil !== "-" ? b.dil : "";
       } else if (role === "nama") {
@@ -519,11 +626,14 @@ export const DataTable: React.FC<DataTableProps> = ({
               {leftCols.map((col) => {
                 const displayLabel =
                   (col.canonicalRole && SUB_HEADER_LABELS[col.canonicalRole]) || col.label;
+                const isSamplingCol = col.canonicalRole === "sampling";
                 return (
                   <th
                     key={col.normalizedKey}
                     rowSpan={hasSubHeaderGroups ? 2 : 1}
-                    className="py-2.5 px-3 bg-white border border-slate-300 text-center align-middle"
+                    className={`py-2.5 px-3 border border-slate-300 text-center align-middle ${
+                      isSamplingCol ? "bg-indigo-100/90 text-indigo-950" : "bg-white"
+                    }`}
                   >
                     <button
                       type="button"
@@ -551,7 +661,7 @@ export const DataTable: React.FC<DataTableProps> = ({
                   colSpan={jarakDilCols.length}
                   className="py-1.5 px-3 text-center font-bold text-slate-950 bg-[#ffff00] border border-slate-400 tracking-wide"
                 >
-                  JARAK DENGAN DIL
+                  {isSamplingSheetSelected ? "JARAK DENGAN SAMPLING" : "JARAK DENGAN DIL"}
                 </th>
               )}
 
@@ -588,10 +698,13 @@ export const DataTable: React.FC<DataTableProps> = ({
                 {coordCols.map((col) => {
                   const subLabel =
                     (col.canonicalRole && SUB_HEADER_LABELS[col.canonicalRole]) || col.label;
+                  const isSamplingCol = col.canonicalRole === "sampling";
                   return (
                     <th
                       key={col.normalizedKey}
-                      className="py-2 px-3 bg-[#b4c6e7] border border-slate-400 text-center align-middle"
+                      className={`py-2 px-3 border border-slate-400 text-center align-middle ${
+                        isSamplingCol ? "bg-[#9bc2e6]" : "bg-[#b4c6e7]"
+                      }`}
                     >
                       <button
                         type="button"
@@ -627,7 +740,11 @@ export const DataTable: React.FC<DataTableProps> = ({
 
                 {jarakBulanCols.map((col) => {
                   const subLabel =
-                    (col.canonicalRole && SUB_HEADER_LABELS[col.canonicalRole]) || col.label;
+                    (isSamplingSheetSelected &&
+                      col.canonicalRole &&
+                      SAMPLING_JARAK_BULAN_SUB_LABELS[col.canonicalRole]) ||
+                    (col.canonicalRole && SUB_HEADER_LABELS[col.canonicalRole]) ||
+                    col.label;
                   return (
                     <th
                       key={col.normalizedKey}
@@ -691,7 +808,12 @@ export const DataTable: React.FC<DataTableProps> = ({
                     const role = col.canonicalRole;
                     let val = rec.rawValues[col.originalHeader] || "-";
 
-                    if (role === "dil") {
+                    if (role === "sampling") {
+                      val =
+                        rec.lokasiSampling && rec.lokasiSampling !== "-"
+                          ? rec.lokasiSampling
+                          : val;
+                    } else if (role === "dil") {
                       val = rec.dil && rec.dil !== "-" ? rec.dil : val !== "-" ? val : rec.id;
                     } else if (role === "nama") {
                       val = rec.nama && rec.nama !== "-" ? rec.nama : val;
@@ -725,93 +847,178 @@ export const DataTable: React.FC<DataTableProps> = ({
                         rec.lokasiDesember && rec.lokasiDesember !== "-"
                           ? rec.lokasiDesember
                           : val;
+                    } else if (role === "jarak_dil_sampling") {
+                      val =
+                        rec.jarakSamplingDil && rec.jarakSamplingDil !== "-"
+                          ? rec.jarakSamplingDil
+                          : val;
                     } else if (role === "jarak_dil_juni") {
-                      val = rec.jarakDilJuni && rec.jarakDilJuni !== "-" ? rec.jarakDilJuni : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingJuni && rec.jarakSamplingJuni !== "-"
+                          ? rec.jarakSamplingJuni
+                          : "-"
+                        : rec.jarakDilJuni && rec.jarakDilJuni !== "-"
+                        ? rec.jarakDilJuni
+                        : val;
                     } else if (role === "jarak_dil_juli") {
-                      val = rec.jarakDilJuli && rec.jarakDilJuli !== "-" ? rec.jarakDilJuli : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingJuli && rec.jarakSamplingJuli !== "-"
+                          ? rec.jarakSamplingJuli
+                          : "-"
+                        : rec.jarakDilJuli && rec.jarakDilJuli !== "-"
+                        ? rec.jarakDilJuli
+                        : val;
                     } else if (role === "jarak_dil_agustus") {
-                      val =
-                        rec.jarakDilAgustus && rec.jarakDilAgustus !== "-"
-                          ? rec.jarakDilAgustus
-                          : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingAgustus && rec.jarakSamplingAgustus !== "-"
+                          ? rec.jarakSamplingAgustus
+                          : "-"
+                        : rec.jarakDilAgustus && rec.jarakDilAgustus !== "-"
+                        ? rec.jarakDilAgustus
+                        : val;
                     } else if (role === "jarak_dil_september") {
-                      val =
-                        rec.jarakDilSeptember && rec.jarakDilSeptember !== "-"
-                          ? rec.jarakDilSeptember
-                          : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingSeptember && rec.jarakSamplingSeptember !== "-"
+                          ? rec.jarakSamplingSeptember
+                          : "-"
+                        : rec.jarakDilSeptember && rec.jarakDilSeptember !== "-"
+                        ? rec.jarakDilSeptember
+                        : val;
                     } else if (role === "jarak_dil_oktober") {
-                      val =
-                        rec.jarakDilOktober && rec.jarakDilOktober !== "-"
-                          ? rec.jarakDilOktober
-                          : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingOktober && rec.jarakSamplingOktober !== "-"
+                          ? rec.jarakSamplingOktober
+                          : "-"
+                        : rec.jarakDilOktober && rec.jarakDilOktober !== "-"
+                        ? rec.jarakDilOktober
+                        : val;
                     } else if (role === "jarak_dil_november") {
-                      val =
-                        rec.jarakDilNovember && rec.jarakDilNovember !== "-"
-                          ? rec.jarakDilNovember
-                          : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingNovember && rec.jarakSamplingNovember !== "-"
+                          ? rec.jarakSamplingNovember
+                          : "-"
+                        : rec.jarakDilNovember && rec.jarakDilNovember !== "-"
+                        ? rec.jarakDilNovember
+                        : val;
                     } else if (role === "jarak_dil_desember") {
-                      val =
-                        rec.jarakDilDesember && rec.jarakDilDesember !== "-"
-                          ? rec.jarakDilDesember
-                          : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingDesember && rec.jarakSamplingDesember !== "-"
+                          ? rec.jarakSamplingDesember
+                          : "-"
+                        : rec.jarakDilDesember && rec.jarakDilDesember !== "-"
+                        ? rec.jarakDilDesember
+                        : val;
                     } else if (role === "jarak_juli") {
-                      val = rec.jarakJuli && rec.jarakJuli !== "-" ? rec.jarakJuli : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingJuni && rec.jarakSamplingJuni !== "-"
+                          ? rec.jarakSamplingJuni
+                          : "-"
+                        : rec.jarakJuli && rec.jarakJuli !== "-"
+                        ? rec.jarakJuli
+                        : val;
                     } else if (role === "jarak_agustus") {
-                      val = rec.jarakAgustus && rec.jarakAgustus !== "-" ? rec.jarakAgustus : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingJuli && rec.jarakSamplingJuli !== "-"
+                          ? rec.jarakSamplingJuli
+                          : "-"
+                        : rec.jarakAgustus && rec.jarakAgustus !== "-"
+                        ? rec.jarakAgustus
+                        : val;
                     } else if (role === "jarak_september") {
-                      val =
-                        rec.jarakSeptember && rec.jarakSeptember !== "-"
-                          ? rec.jarakSeptember
-                          : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingAgustus && rec.jarakSamplingAgustus !== "-"
+                          ? rec.jarakSamplingAgustus
+                          : "-"
+                        : rec.jarakSeptember && rec.jarakSeptember !== "-"
+                        ? rec.jarakSeptember
+                        : val;
                     } else if (role === "jarak_oktober") {
-                      val =
-                        rec.jarakOktober && rec.jarakOktober !== "-"
-                          ? rec.jarakOktober
-                          : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingSeptember && rec.jarakSamplingSeptember !== "-"
+                          ? rec.jarakSamplingSeptember
+                          : "-"
+                        : rec.jarakOktober && rec.jarakOktober !== "-"
+                        ? rec.jarakOktober
+                        : val;
                     } else if (role === "jarak_november") {
-                      val =
-                        rec.jarakNovember && rec.jarakNovember !== "-"
-                          ? rec.jarakNovember
-                          : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingOktober && rec.jarakSamplingOktober !== "-"
+                          ? rec.jarakSamplingOktober
+                          : "-"
+                        : rec.jarakNovember && rec.jarakNovember !== "-"
+                        ? rec.jarakNovember
+                        : val;
                     } else if (role === "jarak_desember") {
-                      val =
-                        rec.jarakDesember && rec.jarakDesember !== "-"
-                          ? rec.jarakDesember
-                          : val;
+                      val = isSamplingSheetSelected
+                        ? rec.jarakSamplingNovember && rec.jarakSamplingNovember !== "-"
+                          ? rec.jarakSamplingNovember
+                          : "-"
+                        : rec.jarakDesember && rec.jarakDesember !== "-"
+                        ? rec.jarakDesember
+                        : val;
                     }
 
                     const isDistanceCol =
+                      role === "jarak_dil_sampling" ||
                       Boolean(role && JARAK_DIL_GROUP_ROLES.includes(role)) ||
                       Boolean(role && JARAK_BULAN_GROUP_ROLES.includes(role));
 
                     // Resolve numeric distance in meters to check if > 100 meters
                     let distanceMeters: number | null = null;
-                    if (role === "jarak_dil_juni") {
-                      distanceMeters = rec.jarakDilJuniMeters;
+                    if (role === "jarak_dil_sampling") {
+                      distanceMeters = rec.jarakSamplingDilMeters;
+                    } else if (role === "jarak_dil_juni") {
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingJuniMeters
+                        : rec.jarakDilJuniMeters;
                     } else if (role === "jarak_dil_juli") {
-                      distanceMeters = rec.jarakDilJuliMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingJuliMeters
+                        : rec.jarakDilJuliMeters;
                     } else if (role === "jarak_dil_agustus") {
-                      distanceMeters = rec.jarakDilAgustusMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingAgustusMeters
+                        : rec.jarakDilAgustusMeters;
                     } else if (role === "jarak_dil_september") {
-                      distanceMeters = rec.jarakDilSeptemberMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingSeptemberMeters
+                        : rec.jarakDilSeptemberMeters;
                     } else if (role === "jarak_dil_oktober") {
-                      distanceMeters = rec.jarakDilOktoberMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingOktoberMeters
+                        : rec.jarakDilOktoberMeters;
                     } else if (role === "jarak_dil_november") {
-                      distanceMeters = rec.jarakDilNovemberMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingNovemberMeters
+                        : rec.jarakDilNovemberMeters;
                     } else if (role === "jarak_dil_desember") {
-                      distanceMeters = rec.jarakDilDesemberMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingDesemberMeters
+                        : rec.jarakDilDesemberMeters;
                     } else if (role === "jarak_juli") {
-                      distanceMeters = rec.jarakJuliMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingJuniMeters
+                        : rec.jarakJuliMeters;
                     } else if (role === "jarak_agustus") {
-                      distanceMeters = rec.jarakAgustusMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingJuliMeters
+                        : rec.jarakAgustusMeters;
                     } else if (role === "jarak_september") {
-                      distanceMeters = rec.jarakSeptemberMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingAgustusMeters
+                        : rec.jarakSeptemberMeters;
                     } else if (role === "jarak_oktober") {
-                      distanceMeters = rec.jarakOktoberMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingSeptemberMeters
+                        : rec.jarakOktoberMeters;
                     } else if (role === "jarak_november") {
-                      distanceMeters = rec.jarakNovemberMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingOktoberMeters
+                        : rec.jarakNovemberMeters;
                     } else if (role === "jarak_desember") {
-                      distanceMeters = rec.jarakDesemberMeters;
+                      distanceMeters = isSamplingSheetSelected
+                        ? rec.jarakSamplingNovemberMeters
+                        : rec.jarakDesemberMeters;
                     }
 
                     // Fallback parser if formatted string is present (e.g. "125,4 m" or "1.250 m")
@@ -830,9 +1037,12 @@ export const DataTable: React.FC<DataTableProps> = ({
                     const isOver100Meters =
                       isDistanceCol && distanceMeters !== null && distanceMeters > 100;
 
-                    const isCoordCol = Boolean(role && KOORDINAT_GROUP_ROLES.includes(role));
+                    const isCoordCol = Boolean(
+                      role && (role === "sampling" || KOORDINAT_GROUP_ROLES.includes(role))
+                    );
 
                     const isMonospace =
+                      role === "sampling" ||
                       role === "dil" ||
                       role === "id" ||
                       role === "latitude" ||
@@ -844,7 +1054,9 @@ export const DataTable: React.FC<DataTableProps> = ({
 
                     // Resolve clickable coordinate if this cell represents a coordinate point
                     let cellCoord: { lat: number; lng: number } | null = null;
-                    if (role === "koordinat_dil" && rec.coordDil) {
+                    if (role === "sampling" && rec.coordSampling) {
+                      cellCoord = rec.coordSampling;
+                    } else if (role === "koordinat_dil" && rec.coordDil) {
                       cellCoord = rec.coordDil;
                     } else if (
                       (role === "lokasi_juni" || col.normalizedKey === "juni") &&

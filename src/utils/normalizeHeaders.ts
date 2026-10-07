@@ -5,7 +5,8 @@ export type TargetMonthlySheet =
   | "SEPTEMBER"
   | "OKTOBER"
   | "NOVEMBER"
-  | "DESEMBER";
+  | "DESEMBER"
+  | "SAMPLING";
 
 export const TARGET_MONTHLY_SHEETS: TargetMonthlySheet[] = [
   "JUNI",
@@ -14,10 +15,12 @@ export const TARGET_MONTHLY_SHEETS: TargetMonthlySheet[] = [
   "SEPTEMBER",
   "OKTOBER",
   "NOVEMBER",
-  "DESEMBER"
+  "DESEMBER",
+  "SAMPLING"
 ];
 
 export type CanonicalField =
+  | "sampling"
   | "dil"
   | "id"
   | "nama"
@@ -30,6 +33,7 @@ export type CanonicalField =
   | "lokasi_oktober"
   | "lokasi_november"
   | "lokasi_desember"
+  | "jarak_dil_sampling"
   | "jarak_dil_juni"
   | "jarak_dil_juli"
   | "jarak_dil_agustus"
@@ -61,6 +65,12 @@ export interface ColumnSchema {
 }
 
 const CANONICAL_PATTERNS: Record<CanonicalField, string[]> = {
+  sampling: [
+    "sampling",
+    "koordinat_sampling",
+    "titik_sampling",
+    "lokasi_sampling"
+  ],
   dil: [
     "dil",
     "data_induk_langganan",
@@ -139,6 +149,11 @@ const CANONICAL_PATTERNS: Record<CanonicalField, string[]> = {
     "lokasi_desember",
     "koordinat_desember",
     "titik_desember"
+  ],
+  jarak_dil_sampling: [
+    "jarak_dil_sampling",
+    "jarak_dengan_sampling_dil",
+    "jarak_sampling_dil"
   ],
   jarak_dil_juni: [
     "jarak_dil_juni",
@@ -446,6 +461,7 @@ export function buildColumnSchemas(rawHeaders: string[]): ColumnSchema[] {
     { label: "DIL", role: "dil" },
     { label: "NAMA", role: "nama" },
     { label: "ALAMAT", role: "alamat" },
+    { label: "SAMPLING", role: "sampling" },
     { label: "Koordinat DIL", role: "koordinat_dil" },
     { label: "Lokasi JUNI", role: "lokasi_juni" },
     { label: "Lokasi JULI", role: "lokasi_juli" },
@@ -454,6 +470,7 @@ export function buildColumnSchemas(rawHeaders: string[]): ColumnSchema[] {
     { label: "Lokasi OKTOBER", role: "lokasi_oktober" },
     { label: "Lokasi NOVEMBER", role: "lokasi_november" },
     { label: "Lokasi DESEMBER", role: "lokasi_desember" },
+    { label: "Jarak SAMPLING - DIL", role: "jarak_dil_sampling" },
     { label: "Jarak DIL - JUNI", role: "jarak_dil_juni" },
     { label: "Jarak DIL - JULI", role: "jarak_dil_juli" },
     { label: "Jarak DIL - AGUSTUS", role: "jarak_dil_agustus" },
@@ -516,6 +533,7 @@ export function buildColumnSchemas(rawHeaders: string[]): ColumnSchema[] {
     "dil",
     "nama",
     "alamat",
+    "sampling",
     "koordinat_dil",
     "lokasi_juni",
     "lokasi_juli",
@@ -524,6 +542,7 @@ export function buildColumnSchemas(rawHeaders: string[]): ColumnSchema[] {
     "lokasi_oktober",
     "lokasi_november",
     "lokasi_desember",
+    "jarak_dil_sampling",
     "jarak_dil_juni",
     "jarak_dil_juli",
     "jarak_dil_agustus",
