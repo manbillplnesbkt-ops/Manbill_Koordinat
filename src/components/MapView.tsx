@@ -25,7 +25,16 @@ interface CoordGroup {
 }
 
 interface MonthlyPointInfo {
-  month: "DIL" | "JUNI" | "JULI" | "AGUSTUS" | "SEPTEMBER";
+  month:
+    | "DIL"
+    | "JUNI"
+    | "JULI"
+    | "AGUSTUS"
+    | "SEPTEMBER"
+    | "OKTOBER"
+    | "NOVEMBER"
+    | "DESEMBER";
+  badgeText: string;
   color: string;
   coord: MonthlyCoord;
   label: string;
@@ -54,7 +63,7 @@ export const MapView: React.FC<MapViewProps> = ({
     [records]
   );
 
-  // Extract the 4 coordinates (DIL, JUNI, JULI, AGUSTUS) for the currently selected record
+  // Extract the coordinates (DIL, JUNI..DESEMBER) for the currently selected record
   const selectedMonthlyPoints = React.useMemo<MonthlyPointInfo[]>(() => {
     if (!selectedRecord) return [];
     const points: MonthlyPointInfo[] = [];
@@ -70,12 +79,23 @@ export const MapView: React.FC<MapViewProps> = ({
         if (p2.isValid && p2.lat !== null && p2.lng !== null) {
           return { lat: p2.lat, lng: p2.lng };
         }
+        if (selectedRecord.latitude !== null && selectedRecord.longitude !== null) {
+          return { lat: selectedRecord.latitude, lng: selectedRecord.longitude };
+        }
         return null;
       })();
+
+    const dilIdentity =
+      selectedRecord.dil && selectedRecord.dil !== "-"
+        ? selectedRecord.dil
+        : selectedRecord.id && selectedRecord.id !== "-"
+        ? selectedRecord.id
+        : "";
 
     if (resolvedCoordDil) {
       points.push({
         month: "DIL",
+        badgeText: dilIdentity ? `DIL: ${dilIdentity}` : "DIL",
         color: "#7c3aed", // Violet / Indigo
         coord: resolvedCoordDil,
         label:
@@ -87,6 +107,7 @@ export const MapView: React.FC<MapViewProps> = ({
     if (selectedRecord.coordJuni) {
       points.push({
         month: "JUNI",
+        badgeText: "JUNI",
         color: "#2563eb", // Blue
         coord: selectedRecord.coordJuni,
         label: selectedRecord.lokasiJuni
@@ -95,6 +116,7 @@ export const MapView: React.FC<MapViewProps> = ({
     if (selectedRecord.coordJuli) {
       points.push({
         month: "JULI",
+        badgeText: "JULI",
         color: "#d97706", // Amber
         coord: selectedRecord.coordJuli,
         label: selectedRecord.lokasiJuli
@@ -103,6 +125,7 @@ export const MapView: React.FC<MapViewProps> = ({
     if (selectedRecord.coordAgustus) {
       points.push({
         month: "AGUSTUS",
+        badgeText: "AGUSTUS",
         color: "#16a34a", // Green
         coord: selectedRecord.coordAgustus,
         label: selectedRecord.lokasiAgustus
@@ -111,9 +134,37 @@ export const MapView: React.FC<MapViewProps> = ({
     if (selectedRecord.coordSeptember) {
       points.push({
         month: "SEPTEMBER",
+        badgeText: "SEPTEMBER",
         color: "#0891b2", // Cyan / Teal
         coord: selectedRecord.coordSeptember,
         label: selectedRecord.lokasiSeptember
+      });
+    }
+    if (selectedRecord.coordOktober) {
+      points.push({
+        month: "OKTOBER",
+        badgeText: "OKTOBER",
+        color: "#db2777", // Pink
+        coord: selectedRecord.coordOktober,
+        label: selectedRecord.lokasiOktober
+      });
+    }
+    if (selectedRecord.coordNovember) {
+      points.push({
+        month: "NOVEMBER",
+        badgeText: "NOVEMBER",
+        color: "#ea580c", // Orange
+        coord: selectedRecord.coordNovember,
+        label: selectedRecord.lokasiNovember
+      });
+    }
+    if (selectedRecord.coordDesember) {
+      points.push({
+        month: "DESEMBER",
+        badgeText: "DESEMBER",
+        color: "#4f46e5", // Indigo
+        coord: selectedRecord.coordDesember,
+        label: selectedRecord.lokasiDesember
       });
     }
     return points;
@@ -407,8 +458,8 @@ export const MapView: React.FC<MapViewProps> = ({
         const offsetY = duplicateIndex * -26;
 
         const iconHtml = `
-          <div style="transform: translate(-50%, calc(-100% + ${offsetY}px)); display: inline-flex; align-items: center; gap: 4px; background: ${pt.color}; color: #ffffff; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace; white-space: nowrap; box-shadow: 0 4px 10px rgba(15,23,42,0.25); border: 1.5px solid #ffffff;">
-            <span>${pt.month}</span>
+          <div style="transform: translate(-50%, calc(-100% + ${offsetY - 6}px)); display: inline-flex; align-items: center; gap: 4px; background: ${pt.color}; color: #ffffff; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace; white-space: nowrap; box-shadow: 0 4px 10px rgba(15,23,42,0.28); border: 1.5px solid #ffffff;">
+            <span>${pt.badgeText}</span>
           </div>
         `;
 
@@ -420,7 +471,7 @@ export const MapView: React.FC<MapViewProps> = ({
         });
 
         const circlePin = L.circleMarker([pt.coord.lat, pt.coord.lng], {
-          radius: 8,
+          radius: pt.month === "DIL" ? 9 : 8,
           fillColor: pt.color,
           color: "#ffffff",
           weight: 2.5,
@@ -430,7 +481,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
         const labelMarker = L.marker([pt.coord.lat, pt.coord.lng], {
           icon: badgeIcon,
-          zIndexOffset: 1000 + idx * 10
+          zIndexOffset: pt.month === "DIL" ? 1500 : 1000 + idx * 10
         }).addTo(monthlyLayer);
 
         const buildMonthPopup = () => {
@@ -440,7 +491,12 @@ export const MapView: React.FC<MapViewProps> = ({
           const header = document.createElement("div");
           header.className = "font-bold text-xs mb-1";
           header.style.color = pt.color;
-          header.textContent = `TITIK KOORDINAT ${pt.month}`;
+          header.textContent =
+            pt.month === "DIL"
+              ? `TITIK KOORDINAT DIL (${
+                  selectedRecord.dil !== "-" ? selectedRecord.dil : selectedRecord.id
+                })`
+              : `TITIK KOORDINAT ${pt.month}`;
           wrap.appendChild(header);
 
           const nameEl = document.createElement("div");
@@ -542,7 +598,9 @@ export const MapView: React.FC<MapViewProps> = ({
     const mainMarker = markerMapRef.current.get(selectedRecord._rowId);
     if (mainMarker) {
       mainMarker.bringToFront();
-      mainMarker.openPopup();
+      if (selectedMonthlyPoints.length === 0) {
+        mainMarker.openPopup();
+      }
     }
   }, [selectedRecord, selectedMonthlyPoints]);
 

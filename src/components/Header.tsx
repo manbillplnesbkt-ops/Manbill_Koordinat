@@ -44,17 +44,27 @@ export const Header: React.FC<HeaderProps> = ({
   }, [lastUpdated]);
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between px-4 lg:px-6 h-14 bg-white border-b border-slate-200">
-      {/* Zone 1: Single text element wordmark */}
+    <header className="sticky top-0 z-30 flex items-center justify-between px-4 lg:px-6 py-2.5 min-h-14 bg-white border-b border-slate-200 gap-3">
+      {/* Zone 1: Brand Title & Subtitles */}
       <a
         href="#top"
         onClick={(e) => {
           e.preventDefault();
           window.scrollTo({ top: 0, behavior: "smooth" });
         }}
-        className="text-base lg:text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0"
+        className="flex flex-col shrink-0 group"
       >
-        GeoSheet Monitor
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-base lg:text-lg font-extrabold tracking-tight text-blue-700 group-hover:text-blue-800 transition-colors">
+            KOMPARA
+          </span>
+          <span className="text-xs lg:text-sm font-bold text-slate-800">
+            — Koordinat Pelanggan Antar Periode
+          </span>
+        </div>
+        <span className="text-[11px] font-medium text-slate-500 leading-tight">
+          PLN Electricity Services Unit Layanan Bukittinggi
+        </span>
       </a>
 
       {/* Zone 2: Clean context / navigation links */}

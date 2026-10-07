@@ -1,6 +1,6 @@
 {
-  "name": "GeoSheet Monitor — Sistem Pemetaan Data Lokasi",
-  "description": "Aplikasi web ringan, modern, dan responsif untuk menampilkan data lokasi dari Google Spreadsheet pada peta interaktif dengan pencarian, filter dinamis, dan upload CSV.",
+  "name": "KOMPARA - Koordinat Pelanggan Antar Periode",
+  "description": "KOMPARA (Koordinat Pelanggan Antar Periode) — PLN Electricity Services Unit Layanan Bukittinggi.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
