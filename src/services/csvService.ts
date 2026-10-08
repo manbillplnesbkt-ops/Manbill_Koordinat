@@ -111,7 +111,7 @@ const JARAK_BULAN_GROUP_ROLES: CanonicalField[] = [
 
 const SUB_HEADER_LABELS: Partial<Record<CanonicalField, string>> = {
   sampling: "SAMPLING",
-  dil: "DIL",
+  dil: "IDPEL",
   nama: "NAMA",
   alamat: "ALAMAT",
   koordinat_dil: "DIL",

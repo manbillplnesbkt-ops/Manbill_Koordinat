@@ -355,7 +355,10 @@ export default function App() {
   };
 
   return (
-    <div id="top" className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+    <div
+      id="top"
+      className="min-h-screen flex flex-col bg-gradient-to-b from-[#f0f6ff] via-[#f5f8fc] to-[#eef4fb] text-slate-900"
+    >
       {/* Top Bar */}
       <Header
         onOpenCsvModal={() => setIsCsvModalOpen(true)}

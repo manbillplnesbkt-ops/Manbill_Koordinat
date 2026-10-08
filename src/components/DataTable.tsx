@@ -11,7 +11,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  ExternalLink
+  ExternalLink,
+  MoreVertical
 } from "lucide-react";
 import { LocationRecord, parseCombinedLocationString } from "../utils/validation";
 import { CanonicalField, ColumnSchema } from "../utils/normalizeHeaders";
@@ -68,7 +69,7 @@ const JARAK_BULAN_GROUP_ROLES: CanonicalField[] = [
 
 const SUB_HEADER_LABELS: Partial<Record<CanonicalField, string>> = {
   sampling: "SAMPLING",
-  dil: "DIL",
+  dil: "IDPEL",
   nama: "NAMA",
   alamat: "ALAMAT",
   koordinat_dil: "DIL",
@@ -500,16 +501,80 @@ export const DataTable: React.FC<DataTableProps> = ({
     }
   };
 
-  const renderSortIcon = (normalizedKey: string) => {
+  const renderSortIcon = (normalizedKey: string, isDarkBg = false) => {
     const isSorted = sortColumnKey === normalizedKey;
     if (!isSorted) {
-      return <ArrowUpDown className="w-3 h-3 opacity-50 shrink-0" />;
+      return (
+        <ArrowUpDown
+          className={`w-3 h-3 shrink-0 ${
+            isDarkBg ? "text-blue-200/75" : "text-slate-400"
+          }`}
+        />
+      );
     }
     return sortDirection === "asc" ? (
-      <ArrowUp className="w-3 h-3 text-blue-700 shrink-0" />
+      <ArrowUp
+        className={`w-3 h-3 shrink-0 ${
+          isDarkBg ? "text-white" : "text-blue-700"
+        }`}
+      />
     ) : (
-      <ArrowDown className="w-3 h-3 text-blue-700 shrink-0" />
+      <ArrowDown
+        className={`w-3 h-3 shrink-0 ${
+          isDarkBg ? "text-white" : "text-blue-700"
+        }`}
+      />
     );
+  };
+
+  const getCoordHeaderPinColor = (role: CanonicalField | null, key: string) => {
+    if (role === "sampling") return "text-blue-600 fill-blue-600/20";
+    if (role === "koordinat_dil") return "text-purple-600 fill-purple-600/20";
+    if (role === "lokasi_juni" || key === "juni") return "text-blue-600 fill-blue-600/20";
+    if (role === "lokasi_juli" || key === "juli") return "text-amber-500 fill-amber-500/20";
+    if (role === "lokasi_agustus" || key === "agustus")
+      return "text-emerald-600 fill-emerald-600/20";
+    if (role === "lokasi_september" || key === "september")
+      return "text-cyan-600 fill-cyan-600/20";
+    if (role === "lokasi_oktober" || key === "oktober")
+      return "text-rose-600 fill-rose-600/20";
+    if (role === "lokasi_november" || key === "november")
+      return "text-indigo-600 fill-indigo-600/20";
+    if (role === "lokasi_desember" || key === "desember")
+      return "text-teal-600 fill-teal-600/20";
+    return "text-blue-600 fill-blue-600/20";
+  };
+
+  const getCoordPillTheme = (role: CanonicalField | null, key: string) => {
+    if (role === "koordinat_dil") {
+      return {
+        pillBg: "bg-[#f3e8ff] border-[#e9d5ff] text-[#6b21a8] hover:bg-[#e9d5ff]/80",
+        pinBg: "bg-[#9333ea] text-white"
+      };
+    }
+    if (role === "lokasi_juli" || key === "juli") {
+      return {
+        pillBg: "bg-[#fef3c7]/85 border-[#fde68a] text-[#b45309] hover:bg-[#fde68a]/70",
+        pinBg: "bg-[#f59e0b] text-white"
+      };
+    }
+    if (role === "lokasi_agustus" || key === "agustus") {
+      return {
+        pillBg: "bg-[#d1fae5]/80 border-[#a7f3d0] text-[#047857] hover:bg-[#a7f3d0]/70",
+        pinBg: "bg-[#10b981] text-white"
+      };
+    }
+    if (role === "lokasi_september" || key === "september") {
+      return {
+        pillBg: "bg-[#cffafe]/80 border-[#a5f3fc] text-[#0e7490] hover:bg-[#a5f3fc]/70",
+        pinBg: "bg-[#06b6d4] text-white"
+      };
+    }
+    // Default (SAMPLING, JUNI, etc.): Blue theme
+    return {
+      pillBg: "bg-[#e0f2fe]/85 border-[#bae6fd] text-[#1d4ed8] hover:bg-[#bae6fd]/70",
+      pinBg: "bg-[#2563eb] text-white"
+    };
   };
 
   const renderStatusText = (val: string) => {
@@ -556,6 +621,39 @@ export const DataTable: React.FC<DataTableProps> = ({
     return <span className="text-slate-700">{val}</span>;
   };
 
+  // Generate page numbers for pagination bar (1 2 3 4 5 ... N)
+  const pageNumbers = React.useMemo(() => {
+    const pages: (number | "...")[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 4) {
+        pages.push(1, 2, 3, 4, 5, "...", totalPages);
+      } else if (currentPage >= totalPages - 3) {
+        pages.push(
+          1,
+          "...",
+          totalPages - 4,
+          totalPages - 3,
+          totalPages - 2,
+          totalPages - 1,
+          totalPages
+        );
+      } else {
+        pages.push(
+          1,
+          "...",
+          currentPage - 1,
+          currentPage,
+          currentPage + 1,
+          "...",
+          totalPages
+        );
+      }
+    }
+    return pages;
+  }, [currentPage, totalPages]);
+
   if (isLoading && records.length === 0) {
     return (
       <div className="flex-1 bg-white border border-slate-200 rounded-lg overflow-hidden">
@@ -600,7 +698,7 @@ export const DataTable: React.FC<DataTableProps> = ({
     coordCols.length > 0 || jarakDilCols.length > 0 || jarakBulanCols.length > 0;
 
   return (
-    <div className="flex flex-col h-full bg-white border border-slate-200 rounded-lg overflow-hidden">
+    <div className="flex flex-col h-full bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden">
       {/* Table Scroll Container (Hold & Drag left/right to pan) */}
       <div
         ref={scrollContainerRef}
@@ -613,35 +711,32 @@ export const DataTable: React.FC<DataTableProps> = ({
         }`}
       >
         <table className="w-full text-left border-collapse">
-          <thead className="sticky top-0 z-20 text-[11px] font-bold text-slate-950 select-none">
-            {/* Row 1: Main Columns (rowSpan=2) + Group Headers (KOORDINAT, JARAK DENGAN DIL, JARAK ANTAR BULAN) */}
+          <thead className="sticky top-0 z-20 text-[11px] font-bold select-none">
+            {/* Row 1: Main Columns (rowSpan=2) + Group Headers (KOORDINAT, JARAK DENGAN DIL, JARAK ANTAR BULAN) + AKSI */}
             <tr>
               <th
                 rowSpan={hasSubHeaderGroups ? 2 : 1}
-                className="py-2.5 px-3 w-12 text-center font-mono bg-white border border-slate-300 align-middle"
+                className="py-3 px-3.5 w-12 text-center font-bold text-white bg-[#2c5278] border-r border-[#3b6691] align-middle"
               >
-                No
+                No.
               </th>
 
               {leftCols.map((col) => {
                 const displayLabel =
                   (col.canonicalRole && SUB_HEADER_LABELS[col.canonicalRole]) || col.label;
-                const isSamplingCol = col.canonicalRole === "sampling";
                 return (
                   <th
                     key={col.normalizedKey}
                     rowSpan={hasSubHeaderGroups ? 2 : 1}
-                    className={`py-2.5 px-3 border border-slate-300 text-center align-middle ${
-                      isSamplingCol ? "bg-indigo-100/90 text-indigo-950" : "bg-white"
-                    }`}
+                    className="py-3 px-3.5 bg-[#2c5278] text-white border-r border-[#3b6691] text-left align-middle"
                   >
                     <button
                       type="button"
                       onClick={() => handleSort(col.normalizedKey)}
-                      className="inline-flex items-center justify-center gap-1 font-bold text-slate-950 hover:text-blue-700 transition-colors cursor-pointer whitespace-nowrap"
+                      className="inline-flex items-center gap-1.5 font-bold text-white hover:text-blue-100 transition-colors cursor-pointer whitespace-nowrap tracking-wide"
                     >
                       <span>{displayLabel}</span>
-                      {renderSortIcon(col.normalizedKey)}
+                      {renderSortIcon(col.normalizedKey, true)}
                     </button>
                   </th>
                 );
@@ -650,7 +745,7 @@ export const DataTable: React.FC<DataTableProps> = ({
               {coordCols.length > 0 && (
                 <th
                   colSpan={coordCols.length}
-                  className="py-1.5 px-3 text-center font-bold text-slate-950 bg-[#b4c6e7] border border-slate-400 tracking-wide"
+                  className="py-2 px-3 text-center font-extrabold text-[#1e3a5f] bg-[#bfd6f6] border-b border-r border-[#a5c3ec] tracking-wider uppercase"
                 >
                   KOORDINAT
                 </th>
@@ -659,7 +754,7 @@ export const DataTable: React.FC<DataTableProps> = ({
               {jarakDilCols.length > 0 && (
                 <th
                   colSpan={jarakDilCols.length}
-                  className="py-1.5 px-3 text-center font-bold text-slate-950 bg-[#ffff00] border border-slate-400 tracking-wide"
+                  className="py-2 px-3 text-center font-extrabold text-amber-950 bg-[#fde68a] border-b border-r border-amber-300 tracking-wider uppercase"
                 >
                   {isSamplingSheetSelected ? "JARAK DENGAN SAMPLING" : "JARAK DENGAN DIL"}
                 </th>
@@ -668,7 +763,7 @@ export const DataTable: React.FC<DataTableProps> = ({
               {jarakBulanCols.length > 0 && (
                 <th
                   colSpan={jarakBulanCols.length}
-                  className="py-1.5 px-3 text-center font-bold text-slate-950 bg-[#a9d08e] border border-slate-400 tracking-wide"
+                  className="py-2 px-3 text-center font-extrabold text-emerald-950 bg-[#bbf7d0] border-b border-r border-emerald-300 tracking-wider uppercase"
                 >
                   JARAK ANTAR BULAN
                 </th>
@@ -678,18 +773,26 @@ export const DataTable: React.FC<DataTableProps> = ({
                 <th
                   key={col.normalizedKey}
                   rowSpan={hasSubHeaderGroups ? 2 : 1}
-                  className="py-2.5 px-3 bg-white border border-slate-300 text-center align-middle"
+                  className="py-3 px-3 bg-[#dbe7f6] text-[#1e3a5f] border-b border-r border-slate-300 text-center align-middle"
                 >
                   <button
                     type="button"
                     onClick={() => handleSort(col.normalizedKey)}
-                    className="inline-flex items-center justify-center gap-1 font-bold text-slate-950 hover:text-blue-700 transition-colors cursor-pointer whitespace-nowrap"
+                    className="inline-flex items-center justify-center gap-1 font-bold text-[#1e3a5f] hover:text-blue-700 transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <span>{col.label}</span>
                     {renderSortIcon(col.normalizedKey)}
                   </button>
                 </th>
               ))}
+
+              {/* AKSI column on the right */}
+              <th
+                rowSpan={hasSubHeaderGroups ? 2 : 1}
+                className="py-3 px-3.5 bg-[#dbe7f6] text-[#1e3a5f] border-b border-l border-slate-300 text-center align-middle font-extrabold tracking-wider"
+              >
+                AKSI
+              </th>
             </tr>
 
             {/* Row 2: Sub-columns under KOORDINAT, JARAK DENGAN DIL, JARAK ANTAR BULAN */}
@@ -698,19 +801,21 @@ export const DataTable: React.FC<DataTableProps> = ({
                 {coordCols.map((col) => {
                   const subLabel =
                     (col.canonicalRole && SUB_HEADER_LABELS[col.canonicalRole]) || col.label;
-                  const isSamplingCol = col.canonicalRole === "sampling";
+                  const pinColor = getCoordHeaderPinColor(
+                    col.canonicalRole,
+                    col.normalizedKey
+                  );
                   return (
                     <th
                       key={col.normalizedKey}
-                      className={`py-2 px-3 border border-slate-400 text-center align-middle ${
-                        isSamplingCol ? "bg-[#9bc2e6]" : "bg-[#b4c6e7]"
-                      }`}
+                      className="py-2 px-3.5 bg-[#e5effc] border-b border-r border-[#cbdcf5] text-left align-middle"
                     >
                       <button
                         type="button"
                         onClick={() => handleSort(col.normalizedKey)}
-                        className="inline-flex items-center justify-center gap-1 font-bold text-slate-950 hover:text-blue-900 transition-colors cursor-pointer whitespace-nowrap"
+                        className="inline-flex items-center gap-1.5 font-extrabold text-[#1e3a5f] hover:text-blue-800 transition-colors cursor-pointer whitespace-nowrap"
                       >
+                        <MapPin className={`w-3.5 h-3.5 shrink-0 ${pinColor}`} />
                         <span>{subLabel}</span>
                         {renderSortIcon(col.normalizedKey)}
                       </button>
@@ -724,12 +829,12 @@ export const DataTable: React.FC<DataTableProps> = ({
                   return (
                     <th
                       key={col.normalizedKey}
-                      className="py-2 px-3 bg-[#ffff00] border border-slate-400 text-center align-middle"
+                      className="py-2 px-3 bg-[#fef3c7] border-b border-r border-amber-200 text-center align-middle"
                     >
                       <button
                         type="button"
                         onClick={() => handleSort(col.normalizedKey)}
-                        className="inline-flex items-center justify-center gap-1 font-bold text-slate-950 hover:text-amber-900 transition-colors cursor-pointer whitespace-nowrap"
+                        className="inline-flex items-center justify-center gap-1 font-extrabold text-amber-950 hover:text-amber-800 transition-colors cursor-pointer whitespace-nowrap"
                       >
                         <span>{subLabel}</span>
                         {renderSortIcon(col.normalizedKey)}
@@ -748,12 +853,12 @@ export const DataTable: React.FC<DataTableProps> = ({
                   return (
                     <th
                       key={col.normalizedKey}
-                      className="py-2 px-3 bg-[#a9d08e] border border-slate-400 text-center align-middle"
+                      className="py-2 px-3 bg-[#dcfce7] border-b border-r border-emerald-200 text-center align-middle"
                     >
                       <button
                         type="button"
                         onClick={() => handleSort(col.normalizedKey)}
-                        className="inline-flex items-center justify-center gap-1 font-bold text-slate-950 hover:text-emerald-950 transition-colors cursor-pointer whitespace-nowrap"
+                        className="inline-flex items-center justify-center gap-1 font-extrabold text-emerald-950 hover:text-emerald-800 transition-colors cursor-pointer whitespace-nowrap"
                       >
                         <span className="leading-tight">{subLabel}</span>
                         {renderSortIcon(col.normalizedKey)}
@@ -765,7 +870,7 @@ export const DataTable: React.FC<DataTableProps> = ({
             )}
           </thead>
 
-          <tbody className="divide-y divide-slate-200 text-xs">
+          <tbody className="divide-y divide-slate-200/80 text-xs">
             {paginatedRecords.map((rec, idx) => {
               const rowNumber = startIdx + idx;
               const isSelected = selectedRecordId === rec._rowId;
@@ -797,10 +902,10 @@ export const DataTable: React.FC<DataTableProps> = ({
                   } ${
                     isSelected
                       ? "bg-blue-50/90 hover:bg-blue-100/70 font-medium"
-                      : "hover:bg-slate-50"
+                      : "hover:bg-slate-50/90"
                   }`}
                 >
-                  <td className="py-2.5 px-3 text-center font-mono tabular-nums text-slate-500 border-x border-slate-200">
+                  <td className="py-2.5 px-3 text-center font-semibold tabular-nums text-slate-600 border-r border-slate-100">
                     {rowNumber}
                   </td>
 
@@ -1105,34 +1210,25 @@ export const DataTable: React.FC<DataTableProps> = ({
                       }
                     }
 
-                    const pinColorClass =
-                      role === "koordinat_dil"
-                        ? "text-violet-600"
-                        : role === "lokasi_juni" || col.normalizedKey === "juni"
-                        ? "text-blue-600"
-                        : role === "lokasi_juli" || col.normalizedKey === "juli"
-                        ? "text-amber-600"
-                        : role === "lokasi_agustus" || col.normalizedKey === "agustus"
-                        ? "text-emerald-600"
-                        : role === "lokasi_september" || col.normalizedKey === "september"
-                        ? "text-cyan-600"
-                        : "text-blue-600";
+                    const pillTheme = getCoordPillTheme(role, col.normalizedKey);
 
                     return (
                       <td
                         key={col.normalizedKey}
-                        className={`py-2.5 px-3 border-r border-slate-200 ${
+                        className={`py-2 px-3 border-r border-slate-100 ${
                           isCoordCol || cellCoord
-                            ? "whitespace-nowrap min-w-[165px]"
+                            ? "whitespace-nowrap min-w-[200px]"
                             : isDistanceCol
                             ? "whitespace-nowrap text-right font-semibold min-w-[100px]"
-                            : "max-w-[220px] truncate"
+                            : role === "dil" || role === "nama"
+                            ? "whitespace-nowrap font-semibold text-[#1e3a5f]"
+                            : "max-w-[230px] truncate text-[#334155]"
                         } ${
                           isOver100Meters
                             ? "font-mono tabular-nums text-red-600 font-bold"
-                            : isMonospace
+                            : isMonospace && !cellCoord
                             ? "font-mono tabular-nums text-slate-800"
-                            : "text-slate-700"
+                            : ""
                         }`}
                         title={
                           cellCoord
@@ -1145,21 +1241,39 @@ export const DataTable: React.FC<DataTableProps> = ({
                         {role === "status" ? (
                           renderStatusText(val)
                         ) : cellCoord && val !== "-" ? (
-                          <a
-                            href={getGoogleMapsUrl(cellCoord.lat, cellCoord.lng)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectRecord(rec);
-                            }}
-                            title={`Buka titik koordinat (${val}) di Google Maps`}
-                            className="inline-flex items-center gap-1.5 text-blue-700 hover:text-blue-900 hover:underline font-medium group"
-                          >
-                            <MapPin className={`w-3.5 h-3.5 shrink-0 ${pinColorClass}`} />
-                            <span>{val}</span>
-                            <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-blue-700 shrink-0 transition-colors" />
-                          </a>
+                          <div className="flex items-center justify-between gap-1.5">
+                            <a
+                              href={getGoogleMapsUrl(cellCoord.lat, cellCoord.lng)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectRecord(rec);
+                              }}
+                              title={`Buka titik koordinat (${val}) di Google Maps`}
+                              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-mono font-semibold transition-all ${pillTheme.pillBg}`}
+                            >
+                              <span
+                                className={`w-4 h-4 rounded-full inline-flex items-center justify-center shrink-0 ${pillTheme.pinBg}`}
+                              >
+                                <MapPin className="w-2.5 h-2.5" />
+                              </span>
+                              <span className="truncate max-w-[145px]">{val}</span>
+                            </a>
+                            <a
+                              href={getGoogleMapsUrl(cellCoord.lat, cellCoord.lng)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectRecord(rec);
+                              }}
+                              title="Buka di Google Maps"
+                              className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors shrink-0"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
                         ) : isOver100Meters ? (
                           <span className="text-red-600 font-bold">{val}</span>
                         ) : (
@@ -1168,6 +1282,47 @@ export const DataTable: React.FC<DataTableProps> = ({
                       </td>
                     );
                   })}
+
+                  {/* AKSI cell on the right */}
+                  <td className="py-2 px-3 text-center whitespace-nowrap border-l border-slate-100">
+                    <div className="inline-flex items-center justify-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectRecord(rec);
+                        }}
+                        title="Lihat titik lokasi pada Peta Aplikasi"
+                        className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 text-white inline-flex items-center justify-center shadow-2xs transition-colors cursor-pointer"
+                      >
+                        <MapPin className="w-3.5 h-3.5" />
+                      </button>
+                      {rec.latitude !== null && rec.longitude !== null ? (
+                        <a
+                          href={getGoogleMapsUrl(rec.latitude, rec.longitude)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Buka koordinat utama di Google Maps"
+                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 inline-flex items-center justify-center border border-slate-200/80 transition-colors cursor-pointer"
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectRecord(rec);
+                          }}
+                          title="Detail baris"
+                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 inline-flex items-center justify-center border border-slate-200/80 transition-colors cursor-pointer"
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -1175,59 +1330,83 @@ export const DataTable: React.FC<DataTableProps> = ({
         </table>
       </div>
 
-      {/* Pagination Footer */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
-        <div className="flex items-center gap-2">
-          <span className="tabular-nums">
-            Menampilkan <strong className="font-semibold text-slate-800">{startIdx}</strong>–
-            <strong className="font-semibold text-slate-800">{endIdx}</strong> dari{" "}
-            <strong className="font-semibold text-slate-800">{sortedRecords.length}</strong> data
-          </span>
-          <span aria-hidden="true" className="text-slate-300">
-            ·
-          </span>
-          <label htmlFor="table-page-size" className="sr-only">
-            Baris per halaman
-          </label>
-          <select
-            id="table-page-size"
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            className="bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono tabular-nums text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600 cursor-pointer"
-          >
-            {pageSizeOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt} / hal
-              </option>
-            ))}
-          </select>
+      {/* Pagination Footer matching the mockup image */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-white border-t border-slate-200/90 text-xs text-slate-600">
+        {/* Left: Menampilkan 1 - 9 dari 203 data */}
+        <div className="tabular-nums text-slate-600">
+          Menampilkan <strong className="font-bold text-slate-800">{startIdx}</strong> -{" "}
+          <strong className="font-bold text-slate-800">{endIdx}</strong> dari{" "}
+          <strong className="font-bold text-slate-800">{sortedRecords.length}</strong> data
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-            aria-label="Halaman sebelumnya"
-            className="p-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
-          <span className="px-2 font-mono tabular-nums text-xs">
-            Hal {currentPage} / {totalPages}
-          </span>
-          <button
-            type="button"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage >= totalPages}
-            aria-label="Halaman berikutnya"
-            className="p-1.5 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+        {/* Center/Right: Numbered Pagination + Tampilkan per halaman */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              aria-label="Halaman sebelumnya"
+              className="w-7 h-7 inline-flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+
+            {pageNumbers.map((p, idx) =>
+              p === "..." ? (
+                <span
+                  key={`ellipsis-${idx}`}
+                  className="px-1.5 text-slate-400 font-semibold select-none"
+                >
+                  ...
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setCurrentPage(p)}
+                  className={`min-w-7 h-7 px-2 inline-flex items-center justify-center rounded-md text-xs font-bold tabular-nums transition-colors cursor-pointer ${
+                    currentPage === p
+                      ? "bg-blue-600 text-white border border-blue-600 shadow-2xs"
+                      : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  {p}
+                </button>
+              )
+            )}
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              aria-label="Halaman berikutnya"
+              className="w-7 h-7 inline-flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label htmlFor="table-page-size" className="text-slate-500 font-medium">
+              Tampilkan per halaman:
+            </label>
+            <select
+              id="table-page-size"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-white border border-slate-200 rounded-md px-2.5 py-1 text-xs font-bold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 cursor-pointer"
+            >
+              {pageSizeOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     </div>
