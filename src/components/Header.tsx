@@ -158,12 +158,12 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           onClick={onExportCsv}
           disabled={!canExport}
-          aria-label="Export CSV"
-          title="Export data yang sedang ditampilkan ke file CSV"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          aria-label="EXPORT EXCELL"
+          title="Export data yang sedang ditampilkan ke file Excel (.xlsx)"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 hover:border-emerald-300 disabled:opacity-40 transition-colors cursor-pointer whitespace-nowrap shrink-0"
         >
           <Download className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Export CSV</span>
+          <span className="hidden sm:inline">EXPORT EXCELL</span>
         </button>
 
         <button

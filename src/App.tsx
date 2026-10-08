@@ -18,7 +18,7 @@ import {
   importCsvToSpreadsheet,
   ImportMode
 } from "./services/spreadsheetService";
-import { exportRecordsToCsv } from "./services/csvService";
+import { exportRecordsToExcel } from "./services/csvService";
 import { Header } from "./components/Header";
 import { StatsCards } from "./components/StatsCards";
 import { FilterPanel } from "./components/FilterPanel";
@@ -360,7 +360,14 @@ export default function App() {
       <Header
         onOpenCsvModal={() => setIsCsvModalOpen(true)}
         onRefresh={() => handleLoadSpreadsheet(config, true)}
-        onExportCsv={() => exportRecordsToCsv(filteredRecords, schemas)}
+        onExportCsv={() =>
+          exportRecordsToExcel(
+            filteredRecords,
+            schemas,
+            config.SHEET_NAME,
+            visibleColumns
+          )
+        }
         onOpenConfigModal={() => setIsConfigModalOpen(true)}
         isLoading={isLoading}
         lastUpdated={lastUpdated}
