@@ -271,8 +271,14 @@ export function normalizeRowToRecord(
   // Fallback for positional sheet CSV:
   // - Sheet SAMPLING: Column 1 = IDPEL, Column 2 = ULP, Column 3 = KOORDINAT ("lat, lng")
   // - Sheet JUNI..DESEMBER: Column 1 = IDPEL, Column 2 = BLTH, Column 3 = LATITUDE, Column 4 = LONGITUDE
-  // - Sheet DIL: Column 1 = DIL, Column 2 = NAMA, Column 3 = ALAMAT, Column 4 = TARIF, Column 5 = DAYA, Column 6 = NO RBM, Column 7 = LATITUDE, Column 8 = LONGITUDE
+  // - Sheet DIL: Column 1 = DIL, Column 2 = NAMA, Column 3 = ALAMAT, Column 4 = TARIF, Column 5 = DAYA, Column 6 = NO RBM, Column 7 = LATITUDE, Column 8 = LONGITUDE, Column 9 = UNIT
   const rawRowKeys = Object.keys(rawRow);
+  if (!unit && rawRowKeys.length >= 9) {
+    const col9Val = String(rawRow[rawRowKeys[8]] ?? "").trim();
+    if (col9Val && col9Val !== "-") {
+      unit = col9Val;
+    }
+  }
   if (!id && !dil && rawRowKeys.length > 0) {
     const firstColVal = String(rawRow[rawRowKeys[0]] ?? "").trim();
     if (firstColVal) {

@@ -51,7 +51,7 @@ export interface ImportResultPayload {
   message: string;
 }
 
-const LOCAL_DATA_CACHE_KEY = "geosheet_monitor_cached_dataset_v13";
+const LOCAL_DATA_CACHE_KEY = "geosheet_monitor_cached_dataset_v14";
 const LOCAL_MONTHLY_OVERRIDES_KEY = "geosheet_monthly_sheet_overrides_v3";
 
 // Clean up older localStorage cache keys
@@ -75,6 +75,7 @@ interface DilMasterInfo {
   nama: string;
   alamat: string;
   koordinatDil: string;
+  unit: string;
 }
 
 type MonthlyLookupsBySheet = Record<TargetMonthlySheet, Map<string, string>>;
@@ -106,8 +107,9 @@ function saveLocalMonthlyOverrides(
 }
 
 /**
- * Fetches Sheet DIL to get unmasked NAMA, ALAMAT, DIL ID, and Koordinat DIL
- * from Column 7 (index 6 = LATITUDE) and Column 8 (index 7 = LONGITUDE) keyed by DIL / IDPEL.
+ * Fetches Sheet DIL to get unmasked NAMA, ALAMAT, DIL ID, Koordinat DIL
+ * from Column 7 (index 6 = LATITUDE) and Column 8 (index 7 = LONGITUDE),
+ * and UNIT from Column 9 (index 8 = UNIT) keyed by DIL / IDPEL.
  */
 async function fetchDilMasterLookupGviz(
   spreadsheetId: string
@@ -155,11 +157,15 @@ async function fetchDilMasterLookupGviz(
         }
       }
 
+      // Ambil Kolom ke-9 (index 8 = UNIT) dari Sheet DIL
+      const unitCol9 = row.length >= 9 ? String(row[8] ?? "").trim() : "";
+
       map.set(dilId.toLowerCase(), {
         dil: dilId,
         nama: String(row[1] ?? "").trim(),
         alamat: String(row[2] ?? "").trim(),
-        koordinatDil
+        koordinatDil,
+        unit: unitCol9
       });
     }
     return map;
@@ -227,6 +233,7 @@ function enrichRecordsWithMonthlyLocations(
   const dilSchema = findSchemaByRole("dil");
   const namaSchema = findSchemaByRole("nama");
   const alamatSchema = findSchemaByRole("alamat");
+  const unitSchema = findSchemaByRole("unit");
   const koordinatDilSchema = findSchemaByRole("koordinat_dil");
 
   const juniSchema = findSchemaByRole("lokasi_juni");
@@ -292,6 +299,18 @@ function enrichRecordsWithMonthlyLocations(
     if (matchedDilInfo?.alamat && (finalAlamat.includes("*") || finalAlamat === "-")) {
       finalAlamat = matchedDilInfo.alamat;
       if (alamatSchema) updatedRaw[alamatSchema.originalHeader] = finalAlamat;
+    }
+
+    // Ambil nilai UNIT dari Sheet DIL Kolom ke-9 (index 8) jika tersedia
+    let finalUnit =
+      matchedDilInfo?.unit && matchedDilInfo.unit !== "-"
+        ? matchedDilInfo.unit
+        : rec.unit && rec.unit !== "-"
+        ? rec.unit
+        : "";
+    if (finalUnit) {
+      if (unitSchema) updatedRaw[unitSchema.originalHeader] = finalUnit;
+      updatedRaw["UNIT"] = finalUnit;
     }
 
     let finalKoordinatDil =
@@ -454,6 +473,7 @@ function enrichRecordsWithMonthlyLocations(
       dil: dilVal || "-",
       nama: finalNama || "-",
       alamat: finalAlamat || "-",
+      unit: finalUnit || "-",
       koordinatDil: finalKoordinatDil || "-",
       lokasiSampling: locSampling || "-",
       lokasiJuni: locJuni || "-",
@@ -605,18 +625,19 @@ export async function fetchSpreadsheetData(
 
       mergeLocalOverridesIntoLookups(SPREADSHEET_ID, monthlyLookups);
 
-      let dilLookup = new Map<string, DilMasterInfo>();
+      let dilLookup = await fetchDilMasterLookupGviz(SPREADSHEET_ID);
       if (json.dilMaster && typeof json.dilMaster === "object") {
         Object.entries(json.dilMaster).forEach(([k, v]: [string, any]) => {
-          dilLookup.set(k.toLowerCase(), {
-            dil: String(v?.dil || k),
-            nama: String(v?.nama || ""),
-            alamat: String(v?.alamat || ""),
-            koordinatDil: String(v?.koordinatDil || "")
+          const lowerK = k.toLowerCase();
+          const existing = dilLookup.get(lowerK);
+          dilLookup.set(lowerK, {
+            dil: String(v?.dil || existing?.dil || k),
+            nama: String(v?.nama || existing?.nama || ""),
+            alamat: String(v?.alamat || existing?.alamat || ""),
+            koordinatDil: String(v?.koordinatDil || existing?.koordinatDil || ""),
+            unit: String(v?.unit || existing?.unit || "")
           });
         });
-      } else {
-        dilLookup = await fetchDilMasterLookupGviz(SPREADSHEET_ID);
       }
 
       const enrichedAll = enrichRecordsWithMonthlyLocations(
@@ -1003,7 +1024,7 @@ export async function importCsvToSpreadsheet(params: {
     monthlyLookups[upperTarget].set(key, coordStr);
   });
 
-  // Build dilLookup if uploading to DIL sheet so NAMA, ALAMAT, and Koordinat DIL are updated immediately
+  // Build dilLookup if uploading to DIL sheet so NAMA, ALAMAT, UNIT, and Koordinat DIL are updated immediately
   const uploadedDilLookup = new Map<string, DilMasterInfo>();
   if (upperTarget === "DIL") {
     incomingRecords.forEach((inRec) => {
@@ -1019,7 +1040,8 @@ export async function importCsvToSpreadsheet(params: {
         dil: inRec.dil !== "-" ? inRec.dil : inRec.id,
         nama: inRec.nama !== "-" ? inRec.nama : "",
         alamat: inRec.alamat !== "-" ? inRec.alamat : "",
-        koordinatDil: coordStr
+        koordinatDil: coordStr,
+        unit: inRec.unit !== "-" ? inRec.unit : ""
       });
     });
   }
@@ -1102,7 +1124,8 @@ export async function importCsvToSpreadsheet(params: {
       "DAYA",
       "NO RBM",
       "LATITUDE",
-      "LONGITUDE"
+      "LONGITUDE",
+      "UNIT"
     ];
   } else if (upperTarget === "SAMPLING") {
     monthlySheetHeaders = ["IDPEL", "ULP", "KOORDINAT"];
@@ -1128,7 +1151,8 @@ export async function importCsvToSpreadsheet(params: {
         DAYA: getRawField(r.rawValues, ["DAYA"]),
         "NO RBM": getRawField(r.rawValues, ["NO RBM", "NO_RBM", "NORBM", "RBM"]),
         LATITUDE: parsed.lat !== null ? String(parsed.lat) : "",
-        LONGITUDE: parsed.lng !== null ? String(parsed.lng) : ""
+        LONGITUDE: parsed.lng !== null ? String(parsed.lng) : "",
+        UNIT: r.unit !== "-" ? r.unit : getRawField(r.rawValues, ["UNIT", "ULP", "UNIT ULP"])
       };
     }
 

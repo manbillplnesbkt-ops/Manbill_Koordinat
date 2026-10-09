@@ -174,17 +174,17 @@ export default function App() {
   }, [config, handleLoadSpreadsheet]);
 
   // Compute unique dynamic filter options from loaded records
+  // UNIT options are always read from r.unit (populated from Sheet DIL Column 9 - UNIT)
   const filterOptions = React.useMemo(() => {
     const units = new Set<string>();
     const petugasSet = new Set<string>();
     const statuses = new Set<string>();
 
-    const hasUnitCol = schemas.some((s) => s.canonicalRole === "unit");
     const hasPetugasCol = schemas.some((s) => s.canonicalRole === "petugas");
     const hasStatusCol = schemas.some((s) => s.canonicalRole === "status");
 
     for (const r of records) {
-      if (hasUnitCol && r.unit && r.unit !== "-") units.add(r.unit);
+      if (r.unit && r.unit !== "-") units.add(r.unit);
       if (hasPetugasCol && r.petugas && r.petugas !== "-") petugasSet.add(r.petugas);
       if (hasStatusCol && r.status && r.status !== "-") statuses.add(r.status);
     }

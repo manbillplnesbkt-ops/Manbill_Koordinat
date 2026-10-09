@@ -55,6 +55,34 @@ function extractMonthlyLocationMap(ss, targetSheetName) {
   return map;
 }
 
+function extractDilMasterMap(ss) {
+  const map = {};
+  const sheet = ss.getSheetByName("DIL");
+  if (!sheet) return map;
+  const values = sheet.getDataRange().getDisplayValues();
+  if (!values || values.length < 2) return map;
+  for (let r = 1; r < values.length; r++) {
+    const row = values[r];
+    const dilId = String(row[0] || "").trim();
+    if (!dilId) continue;
+    const rawLat = row.length >= 8 ? String(row[6] || "").trim() : "";
+    const rawLng = row.length >= 8 ? String(row[7] || "").trim() : "";
+    let koordinatDil = "";
+    if (rawLat && rawLng) {
+      koordinatDil = rawLat.replace(/,/g, ".") + ", " + rawLng.replace(/,/g, ".");
+    }
+    const unitCol9 = row.length >= 9 ? String(row[8] || "").trim() : "";
+    map[dilId.toLowerCase()] = {
+      dil: dilId,
+      nama: String(row[1] || "").trim(),
+      alamat: String(row[2] || "").trim(),
+      koordinatDil: koordinatDil,
+      unit: unitCol9
+    };
+  }
+  return map;
+}
+
 function doGet(e) {
   try {
     const params = (e && e.parameter) ? e.parameter : {};
@@ -66,11 +94,16 @@ function doGet(e) {
     const monthlyLocations = {
       JUNI: extractMonthlyLocationMap(ss, "JUNI"),
       JULI: extractMonthlyLocationMap(ss, "JULI"),
-      AGUSTUS: extractMonthlyLocationMap(ss, "AGUSTUS")
+      AGUSTUS: extractMonthlyLocationMap(ss, "AGUSTUS"),
+      SEPTEMBER: extractMonthlyLocationMap(ss, "SEPTEMBER"),
+      OKTOBER: extractMonthlyLocationMap(ss, "OKTOBER"),
+      NOVEMBER: extractMonthlyLocationMap(ss, "NOVEMBER"),
+      DESEMBER: extractMonthlyLocationMap(ss, "DESEMBER")
     };
+    const dilMaster = extractDilMasterMap(ss);
     const values = sheet.getDataRange().getDisplayValues();
     if (!values || values.length === 0) {
-      return jsonOut({ success: true, sheetName: sheet.getName(), availableSheets: allSheets, headers: [], rows: [], monthlyLocations: monthlyLocations });
+      return jsonOut({ success: true, sheetName: sheet.getName(), availableSheets: allSheets, headers: [], rows: [], monthlyLocations: monthlyLocations, dilMaster: dilMaster });
     }
     const headers = values[0].map(function(h, idx) { return String(h || "").trim() || ("Kolom_" + (idx + 1)); });
     const rows = [];
@@ -80,7 +113,7 @@ function doGet(e) {
       for (let c = 0; c < headers.length; c++) obj[headers[c]] = String(values[i][c] || "").trim();
       rows.push(obj);
     }
-    return jsonOut({ success: true, sheetName: sheet.getName(), availableSheets: allSheets, headers: headers, rows: rows, monthlyLocations: monthlyLocations, updatedAt: new Date().toISOString() });
+    return jsonOut({ success: true, sheetName: sheet.getName(), availableSheets: allSheets, headers: headers, rows: rows, monthlyLocations: monthlyLocations, dilMaster: dilMaster, updatedAt: new Date().toISOString() });
   } catch (err) {
     return jsonOut({ success: false, error: err.message });
   }
