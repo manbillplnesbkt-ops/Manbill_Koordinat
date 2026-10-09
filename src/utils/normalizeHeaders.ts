@@ -1,4 +1,5 @@
 export type TargetMonthlySheet =
+  | "DIL"
   | "JUNI"
   | "JULI"
   | "AGUSTUS"
@@ -9,6 +10,7 @@ export type TargetMonthlySheet =
   | "SAMPLING";
 
 export const TARGET_MONTHLY_SHEETS: TargetMonthlySheet[] = [
+  "DIL",
   "JUNI",
   "JULI",
   "AGUSTUS",
@@ -67,6 +69,7 @@ export interface ColumnSchema {
 const CANONICAL_PATTERNS: Record<CanonicalField, string[]> = {
   sampling: [
     "sampling",
+    "koordinat",
     "koordinat_sampling",
     "titik_sampling",
     "lokasi_sampling"

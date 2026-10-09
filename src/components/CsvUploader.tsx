@@ -34,6 +34,7 @@ interface CsvUploaderProps {
 }
 
 const MONTH_BLTH_MAP: Record<TargetMonthlySheet, string> = {
+  DIL: "202609",
   JUNI: "202606",
   JULI: "202607",
   AGUSTUS: "202608",
@@ -44,34 +45,60 @@ const MONTH_BLTH_MAP: Record<TargetMonthlySheet, string> = {
   SAMPLING: "202609"
 };
 
+function getSheetColumnGuideText(targetSheet: TargetMonthlySheet): string {
+  if (targetSheet === "DIL") {
+    return "DIL, NAMA, ALAMAT, TARIF, DAYA, NO RBM, LATITUDE, LONGITUDE";
+  }
+  if (targetSheet === "SAMPLING") {
+    return "IDPEL, ULP, KOORDINAT";
+  }
+  return "IDPEL, BLTH, LATITUDE, LONGITUDE";
+}
+
 function buildMonthlyTemplateCsv(targetSheet: TargetMonthlySheet, includeSampleRows = true): string {
   const blth = MONTH_BLTH_MAP[targetSheet] || "202609";
-  if (targetSheet === "SAMPLING") {
-    const header = "DIL,BLTH,KOORDINAT,NAMA,ALAMAT";
+
+  if (targetSheet === "DIL") {
+    const header = "DIL,NAMA,ALAMAT,TARIF,DAYA,NO RBM,LATITUDE,LONGITUDE";
     if (!includeSampleRows) {
       return header + "\n";
     }
     const rows = [
-      `131000010536,${blth},"-0.305120, 100.369450",PT Sinar Minang Sejahtera,Jl. Sudirman No. 42 Bukittinggi`,
-      `131000041251,${blth},"-0.304280, 100.368810",Hotel Grand Royal Jam Gadang,Jl. Yos Sudarso No. 12 Benteng Pasar Atas`,
-      `131000051292,${blth},"-0.300890, 100.366120",RSUD Dr. Achmad Mochtar,Jl. Dr. A. Rivai No. 1 Bukittinggi`,
-      `131000051682,${blth},"-0.316450, 100.384210",Pasar Aur Kuning Blok A,Jl. Bypass Aur Kuning Bukittinggi`,
-      `131000052790,${blth},"-0.289650, 100.374800",Kantor Wali Kota Bukittinggi,Jl. Kusuma Bhakti Gulai Bancah`
+      `131000010536,PT Sinar Minang Sejahtera,Jl. Sudirman No. 42 Bukittinggi,B2,16500,RBM01,-0.305120,100.369450`,
+      `131000041251,Hotel Grand Royal Jam Gadang,Jl. Yos Sudarso No. 12 Benteng Pasar Atas,B2,33000,RBM02,-0.304280,100.368810`,
+      `131000051292,RSUD Dr. Achmad Mochtar,Jl. Dr. A. Rivai No. 1 Bukittinggi,S3,197000,RBM03,-0.300890,100.366120`,
+      `131000051682,Pasar Aur Kuning Blok A,Jl. Bypass Aur Kuning Bukittinggi,B1,5500,RBM04,-0.316450,100.384210`,
+      `131000052790,Kantor Wali Kota Bukittinggi,Jl. Kusuma Bhakti Gulai Bancah,P1,41500,RBM05,-0.289650,100.374800`
     ];
     return [header, ...rows].join("\n");
   }
 
-  const header = "IDPEL,BLTH,LATITUDE,LONGITUDE,NAMA,ALAMAT";
+  if (targetSheet === "SAMPLING") {
+    const header = "IDPEL,ULP,KOORDINAT";
+    if (!includeSampleRows) {
+      return header + "\n";
+    }
+    const rows = [
+      `131000010536,BUKITTINGGI,"-0.305120, 100.369450"`,
+      `131000041251,BUKITTINGGI,"-0.304280, 100.368810"`,
+      `131000051292,BUKITTINGGI,"-0.300890, 100.366120"`,
+      `131000051682,BUKITTINGGI,"-0.316450, 100.384210"`,
+      `131000052790,BUKITTINGGI,"-0.289650, 100.374800"`
+    ];
+    return [header, ...rows].join("\n");
+  }
+
+  const header = "IDPEL,BLTH,LATITUDE,LONGITUDE";
   if (!includeSampleRows) {
     return header + "\n";
   }
 
   const rows = [
-    `131000010536,${blth},-0.305120,100.369450,PT Sinar Minang Sejahtera,Jl. Sudirman No. 42 Bukittinggi`,
-    `131000041251,${blth},-0.304280,100.368810,Hotel Grand Royal Jam Gadang,Jl. Yos Sudarso No. 12 Benteng Pasar Atas`,
-    `131000051292,${blth},-0.300890,100.366120,RSUD Dr. Achmad Mochtar,Jl. Dr. A. Rivai No. 1 Bukittinggi`,
-    `131000051682,${blth},-0.316450,100.384210,Pasar Aur Kuning Blok A,Jl. Bypass Aur Kuning Bukittinggi`,
-    `131000052790,${blth},-0.289650,100.374800,Kantor Wali Kota Bukittinggi,Jl. Kusuma Bhakti Gulai Bancah`
+    `131000010536,${blth},-0.305120,100.369450`,
+    `131000041251,${blth},-0.304280,100.368810`,
+    `131000051292,${blth},-0.300890,100.366120`,
+    `131000051682,${blth},-0.316450,100.384210`,
+    `131000052790,${blth},-0.289650,100.374800`
   ];
   return [header, ...rows].join("\n");
 }
@@ -81,7 +108,8 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({
   onClose,
   onConfirmImport,
   folderId,
-  spreadsheetId
+  spreadsheetId,
+  sheetName
 }) => {
   const [targetSheet, setTargetSheet] = React.useState<TargetMonthlySheet>("SEPTEMBER");
   const [validationResult, setValidationResult] =
@@ -98,7 +126,12 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      const upperActive = (sheetName || "").trim().toUpperCase() as TargetMonthlySheet;
+      if (TARGET_MONTHLY_SHEETS.includes(upperActive)) {
+        setTargetSheet(upperActive);
+      }
+    } else {
       setValidationResult(null);
       setRawCsvContent("");
       setParseError(null);
@@ -107,7 +140,7 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({
       setConfirmReplaceChecked(false);
       setIsSubmitting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, sheetName]);
 
   if (!isOpen) return null;
 
@@ -305,11 +338,9 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({
 
             <div className="text-[11px] text-slate-600 bg-white/80 px-3 py-2 rounded border border-blue-100 flex flex-wrap items-center justify-between gap-2">
               <span>
-                Format Kolom Sheet <strong className="font-mono text-slate-900">{targetSheet}</strong>:{" "}
-                <code className="font-mono text-blue-700">
-                  {targetSheet === "SAMPLING"
-                    ? "Kolom 1: DIL/IDPEL · Kolom 2: BLTH · Kolom 3: KOORDINAT (Lat, Lng)"
-                    : "Kolom 1: IDPEL/DIL · Kolom 2: BLTH · Kolom 3: LATITUDE · Kolom 4: LONGITUDE"}
+                Pedoman Kolom Sheet <strong className="font-mono text-slate-900">{targetSheet}</strong>:{" "}
+                <code className="font-mono font-semibold text-blue-700">
+                  {getSheetColumnGuideText(targetSheet)}
                 </code>
               </span>
               <button
@@ -442,45 +473,117 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({
                 <div className="overflow-x-auto border border-slate-200 rounded-lg">
                   <table className="w-full text-left border-collapse text-[11px]">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
-                      <tr>
-                        <th className="py-1.5 px-2.5 font-mono">#</th>
-                        <th className="py-1.5 px-2.5 whitespace-nowrap">DIL / IDPEL</th>
-                        <th className="py-1.5 px-2.5 whitespace-nowrap">Nama</th>
-                        <th className="py-1.5 px-2.5 whitespace-nowrap">Alamat</th>
-                        <th className="py-1.5 px-2.5 whitespace-nowrap">
-                          Titik Koordinat ({targetSheet})
-                        </th>
-                        <th className="py-1.5 px-2.5">Validasi</th>
-                      </tr>
+                      {targetSheet === "DIL" ? (
+                        <tr>
+                          <th className="py-1.5 px-2.5 font-mono">#</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">DIL</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">NAMA</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">ALAMAT</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">TARIF</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">DAYA</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">NO RBM</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">LATITUDE</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">LONGITUDE</th>
+                          <th className="py-1.5 px-2.5">Validasi</th>
+                        </tr>
+                      ) : targetSheet === "SAMPLING" ? (
+                        <tr>
+                          <th className="py-1.5 px-2.5 font-mono">#</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">IDPEL</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">ULP</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">KOORDINAT</th>
+                          <th className="py-1.5 px-2.5">Validasi</th>
+                        </tr>
+                      ) : (
+                        <tr>
+                          <th className="py-1.5 px-2.5 font-mono">#</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">IDPEL</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">BLTH</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">LATITUDE</th>
+                          <th className="py-1.5 px-2.5 whitespace-nowrap">LONGITUDE</th>
+                          <th className="py-1.5 px-2.5">Validasi</th>
+                        </tr>
+                      )}
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {validationResult.allRecords.slice(0, 5).map((rec, i) => {
                         const rowErr = validationResult.validationErrors.find(
                           (ve) => ve.rowNumber === i + 2
                         );
+                        const idOrDil = rec.id !== "-" ? rec.id : rec.dil;
                         const coordPreview =
                           rec.latitude !== null && rec.longitude !== null
                             ? `${rec.latitude}, ${rec.longitude}`
+                            : rec.lokasiSampling !== "-"
+                            ? rec.lokasiSampling
                             : rec.koordinatDil !== "-"
                             ? rec.koordinatDil
                             : "-";
+
+                        const getRawCaseInsensitive = (keyNames: string[], fallback = "-") => {
+                          for (const k of Object.keys(rec.rawValues)) {
+                            if (keyNames.includes(k.trim().toUpperCase())) {
+                              const v = rec.rawValues[k]?.trim();
+                              if (v) return v;
+                            }
+                          }
+                          return fallback;
+                        };
+
                         return (
                           <tr key={rec._rowId}>
                             <td className="py-1.5 px-2.5 font-mono text-slate-400">
                               {i + 1}
                             </td>
                             <td className="py-1.5 px-2.5 font-mono font-semibold text-slate-800">
-                              {rec.id !== "-" ? rec.id : rec.dil}
+                              {idOrDil}
                             </td>
-                            <td className="py-1.5 px-2.5 max-w-[160px] truncate">
-                              {rec.nama}
-                            </td>
-                            <td className="py-1.5 px-2.5 max-w-[180px] truncate">
-                              {rec.alamat}
-                            </td>
-                            <td className="py-1.5 px-2.5 font-mono text-blue-700 whitespace-nowrap">
-                              {coordPreview}
-                            </td>
+                            {targetSheet === "DIL" ? (
+                              <>
+                                <td className="py-1.5 px-2.5 max-w-[140px] truncate">
+                                  {rec.nama}
+                                </td>
+                                <td className="py-1.5 px-2.5 max-w-[160px] truncate">
+                                  {rec.alamat}
+                                </td>
+                                <td className="py-1.5 px-2.5 font-mono">
+                                  {getRawCaseInsensitive(["TARIF"])}
+                                </td>
+                                <td className="py-1.5 px-2.5 font-mono">
+                                  {getRawCaseInsensitive(["DAYA"])}
+                                </td>
+                                <td className="py-1.5 px-2.5 font-mono">
+                                  {getRawCaseInsensitive(["NO RBM", "NO_RBM", "NORBM", "RBM"])}
+                                </td>
+                                <td className="py-1.5 px-2.5 font-mono text-blue-700">
+                                  {rec.latitude !== null ? rec.latitude : "-"}
+                                </td>
+                                <td className="py-1.5 px-2.5 font-mono text-blue-700">
+                                  {rec.longitude !== null ? rec.longitude : "-"}
+                                </td>
+                              </>
+                            ) : targetSheet === "SAMPLING" ? (
+                              <>
+                                <td className="py-1.5 px-2.5 font-mono">
+                                  {rec.unit !== "-" ? rec.unit : getRawCaseInsensitive(["ULP", "UNIT"])}
+                                </td>
+                                <td className="py-1.5 px-2.5 font-mono text-blue-700 whitespace-nowrap">
+                                  {coordPreview}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="py-1.5 px-2.5 font-mono">
+                                  {getRawCaseInsensitive(["BLTH"], MONTH_BLTH_MAP[targetSheet])}
+                                </td>
+                                <td className="py-1.5 px-2.5 font-mono text-blue-700">
+                                  {rec.latitude !== null ? rec.latitude : "-"}
+                                </td>
+                                <td className="py-1.5 px-2.5 font-mono text-blue-700">
+                                  {rec.longitude !== null ? rec.longitude : "-"}
+                                </td>
+                              </>
+                            )}
                             <td className="py-1.5 px-2.5 whitespace-nowrap">
                               {rowErr ? (
                                 <span className="text-amber-700 font-medium inline-flex items-center gap-1">

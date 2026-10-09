@@ -298,6 +298,14 @@ function enrichRecordsWithMonthlyLocations(
       matchedDilInfo?.koordinatDil ||
       (rec.koordinatDil && rec.koordinatDil !== "-" ? rec.koordinatDil : "");
 
+    for (const k of candidateKeys) {
+      const vDilOverride = monthlyLookups.DIL?.get(k);
+      if (vDilOverride && vDilOverride !== "-") {
+        finalKoordinatDil = vDilOverride;
+        break;
+      }
+    }
+
     const pDil = parseCombinedLocationString(finalKoordinatDil);
     const coordDil: MonthlyCoord | null =
       pDil.isValid && pDil.lat !== null && pDil.lng !== null
@@ -580,6 +588,7 @@ export async function fetchSpreadsheetData(
       });
 
       const monthlyLookups: MonthlyLookupsBySheet = {
+        DIL: new Map<string, string>(Object.entries(json.monthlyLocations?.DIL || {})),
         JUNI: new Map<string, string>(Object.entries(json.monthlyLocations?.JUNI || {})),
         JULI: new Map<string, string>(Object.entries(json.monthlyLocations?.JULI || {})),
         AGUSTUS: new Map<string, string>(Object.entries(json.monthlyLocations?.AGUSTUS || {})),
@@ -752,6 +761,7 @@ export async function fetchSpreadsheetData(
 
     let parsed = parseRawCsvString(text, `${requestedSheet}.csv`);
     const monthlyLookups: MonthlyLookupsBySheet = {
+      DIL: new Map(),
       JUNI: juniLookup,
       JULI: juliLookup,
       AGUSTUS: agustusLookup,
@@ -956,6 +966,7 @@ export async function importCsvToSpreadsheet(params: {
 
   // 3. Build monthlyLookups from existing records + updated targetSheet
   const monthlyLookups: MonthlyLookupsBySheet = {
+    DIL: new Map(),
     JUNI: new Map(),
     JULI: new Map(),
     AGUSTUS: new Map(),
@@ -974,6 +985,7 @@ export async function importCsvToSpreadsheet(params: {
         ? rec.id.trim().toLowerCase()
         : "";
     if (!k) return;
+    if (rec.koordinatDil && rec.koordinatDil !== "-") monthlyLookups.DIL.set(k, rec.koordinatDil);
     if (rec.lokasiSampling && rec.lokasiSampling !== "-") monthlyLookups.SAMPLING.set(k, rec.lokasiSampling);
     if (rec.lokasiJuni && rec.lokasiJuni !== "-") monthlyLookups.JUNI.set(k, rec.lokasiJuni);
     if (rec.lokasiJuli && rec.lokasiJuli !== "-") monthlyLookups.JULI.set(k, rec.lokasiJuli);
@@ -991,6 +1003,27 @@ export async function importCsvToSpreadsheet(params: {
     monthlyLookups[upperTarget].set(key, coordStr);
   });
 
+  // Build dilLookup if uploading to DIL sheet so NAMA, ALAMAT, and Koordinat DIL are updated immediately
+  const uploadedDilLookup = new Map<string, DilMasterInfo>();
+  if (upperTarget === "DIL") {
+    incomingRecords.forEach((inRec) => {
+      const k =
+        inRec.dil && inRec.dil !== "-"
+          ? inRec.dil.trim().toLowerCase()
+          : inRec.id && inRec.id !== "-"
+          ? inRec.id.trim().toLowerCase()
+          : "";
+      if (!k) return;
+      const coordStr = incomingCoordMap.get(k) || extractRecordCoordString(inRec);
+      uploadedDilLookup.set(k, {
+        dil: inRec.dil !== "-" ? inRec.dil : inRec.id,
+        nama: inRec.nama !== "-" ? inRec.nama : "",
+        alamat: inRec.alamat !== "-" ? inRec.alamat : "",
+        koordinatDil: coordStr
+      });
+    });
+  }
+
   // 4. Ensure any new DIL/IDPEL rows from the uploaded CSV that don't exist yet in existingRecords are added
   const existingKeys = new Set<string>();
   existingRecords.forEach((r) => {
@@ -998,7 +1031,12 @@ export async function importCsvToSpreadsheet(params: {
     if (r.id && r.id !== "-") existingKeys.add(r.id.trim().toLowerCase());
   });
 
-  const combinedBaseRecords = [...existingRecords];
+  const combinedBaseRecords =
+    upperTarget === "DIL" && mode === "replace" ? [] : [...existingRecords];
+  if (upperTarget === "DIL" && mode === "replace") {
+    existingKeys.clear();
+  }
+
   const finalSchemas = buildColumnSchemas(
     existingHeaders.length > 0 ? existingHeaders : incomingHeaders
   );
@@ -1023,16 +1061,17 @@ export async function importCsvToSpreadsheet(params: {
   const finalRecords = enrichRecordsWithMonthlyLocations(
     combinedBaseRecords,
     finalSchemas,
-    monthlyLookups
+    monthlyLookups,
+    uploadedDilLookup.size > 0 ? uploadedDilLookup : undefined
   );
 
-  // 5. Sync to Google Apps Script Web App targeting `targetSheet` (e.g. JUNI..DESEMBER)
+  // 5. Sync to Google Apps Script Web App targeting `targetSheet`
   let syncedToRemote = false;
   let driveFile: ImportResultPayload["driveFile"] = null;
   let remoteMessage = "";
 
-  // Format rows for the monthly sheet in Spreadsheet: IDPEL, BLTH, LATITUDE, LONGITUDE, NAMA, ALAMAT
   const monthNumberMap: Record<TargetMonthlySheet, string> = {
+    DIL: "202609",
     JUNI: "202606",
     JULI: "202607",
     AGUSTUS: "202608",
@@ -1043,10 +1082,33 @@ export async function importCsvToSpreadsheet(params: {
     SAMPLING: "SAMPLING"
   };
 
-  const isSamplingUpload = upperTarget === "SAMPLING";
-  const monthlySheetHeaders = isSamplingUpload
-    ? ["IDPEL", "BLTH", "KOORDINAT", "NAMA", "ALAMAT"]
-    : ["IDPEL", "BLTH", "LATITUDE", "LONGITUDE", "NAMA", "ALAMAT"];
+  const getRawField = (rawValues: Record<string, string>, candidates: string[]): string => {
+    for (const key of Object.keys(rawValues)) {
+      if (candidates.includes(key.trim().toUpperCase())) {
+        const val = rawValues[key]?.trim();
+        if (val) return val;
+      }
+    }
+    return "";
+  };
+
+  let monthlySheetHeaders: string[];
+  if (upperTarget === "DIL") {
+    monthlySheetHeaders = [
+      "DIL",
+      "NAMA",
+      "ALAMAT",
+      "TARIF",
+      "DAYA",
+      "NO RBM",
+      "LATITUDE",
+      "LONGITUDE"
+    ];
+  } else if (upperTarget === "SAMPLING") {
+    monthlySheetHeaders = ["IDPEL", "ULP", "KOORDINAT"];
+  } else {
+    monthlySheetHeaders = ["IDPEL", "BLTH", "LATITUDE", "LONGITUDE"];
+  }
 
   const monthlySheetRows = incomingRecords.map((r) => {
     const idVal = r.id !== "-" ? r.id : r.dil !== "-" ? r.dil : "";
@@ -1057,23 +1119,35 @@ export async function importCsvToSpreadsheet(params: {
         ? `${parsed.lat}, ${parsed.lng}`
         : coordStr;
 
-    if (isSamplingUpload) {
+    if (upperTarget === "DIL") {
+      return {
+        DIL: r.dil !== "-" ? r.dil : idVal,
+        NAMA: r.nama !== "-" ? r.nama : getRawField(r.rawValues, ["NAMA"]),
+        ALAMAT: r.alamat !== "-" ? r.alamat : getRawField(r.rawValues, ["ALAMAT"]),
+        TARIF: getRawField(r.rawValues, ["TARIF"]),
+        DAYA: getRawField(r.rawValues, ["DAYA"]),
+        "NO RBM": getRawField(r.rawValues, ["NO RBM", "NO_RBM", "NORBM", "RBM"]),
+        LATITUDE: parsed.lat !== null ? String(parsed.lat) : "",
+        LONGITUDE: parsed.lng !== null ? String(parsed.lng) : ""
+      };
+    }
+
+    if (upperTarget === "SAMPLING") {
       return {
         IDPEL: idVal,
-        BLTH: r.rawValues["BLTH"] || monthNumberMap[upperTarget] || "",
-        KOORDINAT: combinedCoord,
-        NAMA: r.nama !== "-" ? r.nama : "",
-        ALAMAT: r.alamat !== "-" ? r.alamat : ""
+        ULP:
+          r.unit !== "-"
+            ? r.unit
+            : getRawField(r.rawValues, ["ULP", "UNIT", "UNIT ULP"]) || "BUKITTINGGI",
+        KOORDINAT: combinedCoord
       };
     }
 
     return {
       IDPEL: idVal,
-      BLTH: r.rawValues["BLTH"] || monthNumberMap[upperTarget] || "",
+      BLTH: getRawField(r.rawValues, ["BLTH"]) || monthNumberMap[upperTarget] || "",
       LATITUDE: parsed.lat !== null ? String(parsed.lat) : "",
-      LONGITUDE: parsed.lng !== null ? String(parsed.lng) : "",
-      NAMA: r.nama !== "-" ? r.nama : "",
-      ALAMAT: r.alamat !== "-" ? r.alamat : ""
+      LONGITUDE: parsed.lng !== null ? String(parsed.lng) : ""
     };
   });
 

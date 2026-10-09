@@ -268,7 +268,10 @@ export function normalizeRowToRecord(
     }
   }
 
-  // Fallback for positional sheet CSV where Column 1 is IDPEL/DIL and Column 3 (index 2) is combined Coordinate ("lat, lng") or Column 3 & Column 4 are Latitude & Longitude
+  // Fallback for positional sheet CSV:
+  // - Sheet SAMPLING: Column 1 = IDPEL, Column 2 = ULP, Column 3 = KOORDINAT ("lat, lng")
+  // - Sheet JUNI..DESEMBER: Column 1 = IDPEL, Column 2 = BLTH, Column 3 = LATITUDE, Column 4 = LONGITUDE
+  // - Sheet DIL: Column 1 = DIL, Column 2 = NAMA, Column 3 = ALAMAT, Column 4 = TARIF, Column 5 = DAYA, Column 6 = NO RBM, Column 7 = LATITUDE, Column 8 = LONGITUDE
   const rawRowKeys = Object.keys(rawRow);
   if (!id && !dil && rawRowKeys.length > 0) {
     const firstColVal = String(rawRow[rawRowKeys[0]] ?? "").trim();
@@ -277,11 +280,28 @@ export function normalizeRowToRecord(
       dil = firstColVal;
     }
   }
+  if (!rawLat && !rawLng && lokasiSampling) {
+    const parsedSampling = parseCombinedLocationString(lokasiSampling);
+    if (parsedSampling.isValid && parsedSampling.lat !== null && parsedSampling.lng !== null) {
+      rawLat = String(parsedSampling.lat);
+      rawLng = String(parsedSampling.lng);
+      lokasiSampling = `${parsedSampling.lat}, ${parsedSampling.lng}`;
+    }
+  }
+  if (!rawLat && !rawLng && rawRowKeys.length >= 8) {
+    const col7Val = String(rawRow[rawRowKeys[6]] ?? "").trim();
+    const col8Val = String(rawRow[rawRowKeys[7]] ?? "").trim();
+    const checkDilPos = parseAndValidateCoordinates(col7Val, col8Val);
+    if (checkDilPos.isValid && checkDilPos.lat !== null && checkDilPos.lng !== null) {
+      rawLat = col7Val;
+      rawLng = col8Val;
+    }
+  }
   if (!rawLat && !rawLng && rawRowKeys.length >= 3) {
     const col3Val = String(rawRow[rawRowKeys[2]] ?? "").trim();
     const col4Val = rawRowKeys.length >= 4 ? String(rawRow[rawRowKeys[3]] ?? "").trim() : "";
 
-    // Check if Column 3 alone is a combined coordinate string ("lat, lng")
+    // Check if Column 3 alone is a combined coordinate string ("lat, lng") e.g. Sheet SAMPLING (IDPEL, ULP, KOORDINAT)
     const combinedCol3 = parseCombinedLocationString(col3Val);
     if (combinedCol3.isValid && combinedCol3.lat !== null && combinedCol3.lng !== null) {
       rawLat = String(combinedCol3.lat);
@@ -637,6 +657,21 @@ export function buildSheetLocationLookupFromMatrix(
       if (rawCol3Lat !== "" || rawCol4Lng !== "") {
         const cleanLatStr = rawCol3Lat.replace(/,/g, ".").replace(/\s+/g, "");
         const cleanLngStr = rawCol4Lng.replace(/,/g, ".").replace(/\s+/g, "");
+        const parsed = parseAndValidateCoordinates(cleanLatStr, cleanLngStr);
+        if (parsed.isValid && parsed.lat !== null && parsed.lng !== null) {
+          combinedLocation = `${cleanLatStr}, ${cleanLngStr}`;
+        }
+      }
+    }
+
+    // 3. Jika Sheet DIL (8 kolom: DIL, NAMA, ALAMAT, TARIF, DAYA, NO RBM, LATITUDE, LONGITUDE), cek Kolom ke-7 dan ke-8
+    if (!combinedLocation && row.length >= 8) {
+      const rawCol7Lat = String(row[6] ?? "").trim();
+      const rawCol8Lng = String(row[7] ?? "").trim();
+
+      if (rawCol7Lat !== "" || rawCol8Lng !== "") {
+        const cleanLatStr = rawCol7Lat.replace(/,/g, ".").replace(/\s+/g, "");
+        const cleanLngStr = rawCol8Lng.replace(/,/g, ".").replace(/\s+/g, "");
         const parsed = parseAndValidateCoordinates(cleanLatStr, cleanLngStr);
         if (parsed.isValid && parsed.lat !== null && parsed.lng !== null) {
           combinedLocation = `${cleanLatStr}, ${cleanLngStr}`;

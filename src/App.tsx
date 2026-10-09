@@ -318,6 +318,7 @@ export default function App() {
     setFetchError(null);
 
     const monthRoleMap: Record<TargetMonthlySheet, CanonicalField[]> = {
+      DIL: ["dil", "nama", "alamat", "koordinat_dil"],
       JUNI: ["lokasi_juni", "jarak_dil_juni"],
       JULI: ["lokasi_juli", "jarak_dil_juli", "jarak_juli"],
       AGUSTUS: ["lokasi_agustus", "jarak_dil_agustus", "jarak_agustus"],
