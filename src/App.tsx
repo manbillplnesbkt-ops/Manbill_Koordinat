@@ -497,7 +497,7 @@ export default function App() {
       )}
 
       {/* Main Workspace: Table takes full width until a row is clicked; when a row is clicked, Map appears */}
-      <main className="flex-1 p-4 lg:px-6 lg:py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:h-[calc(100vh-12.5rem)] lg:min-h-[520px]">
+      <main className="flex-1 p-4 lg:px-6 lg:py-3 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:h-[calc(100vh-14.5rem)] lg:min-h-[500px]">
         {/* Left / Top: Data Table */}
         <section
           aria-label="Tabel Data Lokasi"
@@ -537,6 +537,21 @@ export default function App() {
           </section>
         )}
       </main>
+
+      {/* Application Footer */}
+      <footer className="mt-auto bg-white/85 backdrop-blur-md border-t border-slate-200/80 px-4 lg:px-6 py-2.5 shadow-2xs">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+          <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+            <span className="inline-block w-2 h-2 rounded-full bg-[#00a2e9]" />
+            <span>
+              KOMPARA — Koordinat Pelanggan Antar Periode · PLN Electricity Services UL Bukittinggi
+            </span>
+          </div>
+          <p className="text-[11px] sm:text-xs font-semibold tracking-wide text-[#1e3a5f] font-mono">
+            Copyright © 13307BKT-IT PLN ES UL BUKITTINGGI -092026
+          </p>
+        </div>
+      </footer>
 
       {/* CSV Uploader Modal */}
       <CsvUploader
